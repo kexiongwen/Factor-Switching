@@ -1,0 +1,3 @@
+include README.md Factor_Switching.md
+recursive-include examples *.py
+global-exclude *.py[cod] .DS_Store
