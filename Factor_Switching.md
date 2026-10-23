@@ -1,6 +1,6 @@
 # Factor Switching
 
-Rotation, sign and permutation post-processing of factor loadings.
+Rotation, sign, and permutation post-processing of factor loadings.
 
 - [1. Factor Model](#1-factor-model)
 - [2. Identifiability Problems](#2-identifiability-problems)
@@ -16,39 +16,39 @@ Notation and model setting used throughout.
 
 ### 1.1 Model setting
 
-Let $`Y_i=(Y_{i1},\ldots,Y_{ip})^\top`$ denote the $`i`$-th observation of a random sample of $`p`$-dimensional responses, $`Y_i\in\mathbb{R}^{p}`$, $`i=1,\ldots,n`$. Let $`\mathcal{N}_p(\mu,\boldsymbol{\Sigma})`$ denote the $`p`$-dimensional normal distribution with mean $`\mu=(\mu_1,\ldots,\mu_p)\in\mathbb{R}^p`$ and covariance matrix $`\boldsymbol{\Sigma}`$, and let $`\mathbf{I}_p`$ denote the $`p\times p`$ identity matrix.
+Let $`Y_i=(Y_{i1},\ldots,Y_{ip})^\top\in\mathbb{R}^p`$ denote the $`i`$-th observation in a random sample of $`p`$-dimensional responses, for $`i=1,\ldots,n`$. Let $`\mathcal{N}_p(\mu,\boldsymbol{\Sigma})`$ denote the $`p`$-dimensional normal distribution with mean vector $`\mu=(\mu_1,\ldots,\mu_p)^\top\in\mathbb{R}^p`$ and covariance matrix $`\boldsymbol{\Sigma}`$, and let $`\mathbf{I}_p`$ denote the $`p\times p`$ identity matrix.
 
-In the typical Factor Analysis (FA) model — also referred to as the *strict factor structure* — $`Y_i`$ is expressed as a linear combination of a latent vector of factors $`F_i\in\mathbb{R}^{q}`$:
+In the standard Factor Analysis (FA) model — also known as the *strict factor structure* — each response $`Y_i`$ is modeled as a linear combination of a latent factor vector $`F_i\in\mathbb{R}^q`$ plus idiosyncratic noise:
 
 ```math
 Y_i = \mu + \boldsymbol{\Lambda} F_i + \varepsilon_i,\quad i = 1,\ldots,n,
 \qquad\text{(1)}
 ```
 
-where $`q>0`$ denotes the number of factors, which is assumed fixed and $`q<p`$. The $`p\times q`$ matrix $`\boldsymbol{\Lambda}=(\lambda_{rj})`$ contains the factor loadings, while $`\mu=(\mu_1,\ldots,\mu_p)`$ contains the marginal mean of $`Y_i`$. The unobserved vector of factors $`F_i=(F_{i1},\ldots,F_{iq})^\top`$ lies on a lower-dimensional space, that is, $`q<p`$, and consists of uncorrelated and homoscedastic features:
+where the number of factors $`q`$ is fixed and known, with $`0<q<p`$. Here, $`\boldsymbol{\Lambda}=(\lambda_{rj})\in\mathbb{R}^{p\times q}`$ is the matrix of factor loadings, and $`\mu=(\mu_1,\ldots,\mu_p)^\top`$ is the marginal mean of $`Y_i`$. The unobserved factor vectors $`F_i=(F_{i1},\ldots,F_{iq})^\top`$ lie in a lower-dimensional space ($`q<p`$) and consist of uncorrelated, unit-variance features:
 
 ```math
-F_i \sim \mathcal{N}_q(0_q,\mathbf{I}_q),
+F_i \stackrel{\mathrm{iid}}{\sim} \mathcal{N}_q(0_q,\mathbf{I}_q),\quad i=1,\ldots,n,
 \qquad\text{(2)}
 ```
 
-independent for $`i=1,\ldots,n`$, where $`0_q:=(0,\ldots,0)^\top`$ and $`\mathbf{I}_q`$ denotes the $`q\times q`$ identity matrix.
+where $`0_q:=(0,\ldots,0)^\top\in\mathbb{R}^q`$.
 
-The terms $`\varepsilon_i`$ (commonly referred to as *uniquenesses* or *idiosyncratic errors*) are independent of $`F_i`$, so $`\mathrm{Cov}(F_{ij},\varepsilon_{ik})=0`$ for all $`j=1,\ldots,q`$ and $`k=1,\ldots,p`$. They are normally distributed:
+The error terms $`\varepsilon_i`$ (commonly referred to as *uniquenesses* or *idiosyncratic errors*) are independent of $`F_i`$, so $`\mathrm{Cov}(F_{ij},\varepsilon_{ir})=0`$ for all $`j=1,\ldots,q`$ and $`r=1,\ldots,p`$. They follow a normal distribution:
 
 ```math
-\varepsilon_i\sim \mathcal{N}_p(0_p,\boldsymbol{\Sigma}),
+\varepsilon_i \stackrel{\mathrm{iid}}{\sim} \mathcal{N}_p(0_p,\boldsymbol{\Sigma}),\quad i=1,\ldots,n,
 \qquad\text{(3)}
 ```
 
-independent for $`i=1,\ldots,n`$. Furthermore, $`\varepsilon_i`$ consists of independent random variables $`\varepsilon_{i1},\ldots,\varepsilon_{ip}`$, that is,
+with mutually independent components $`\varepsilon_{i1},\ldots,\varepsilon_{ip}`$, so that
 
 ```math
 \boldsymbol{\Sigma} = \mathrm{diag}(\sigma_1^2,\ldots,\sigma_p^2).
 \qquad\text{(4)}
 ```
 
-The distribution of $`Y_i`$ conditional on $`F_i`$ is
+Conditional on $`F_i`$, the responses are independent across observations with distribution
 
 ```math
 Y_i \mid F_i \sim \mathcal{N}_p(\mu+\boldsymbol{\Lambda} F_i,\boldsymbol{\Sigma}),
@@ -56,34 +56,34 @@ Y_i \mid F_i \sim \mathcal{N}_p(\mu+\boldsymbol{\Lambda} F_i,\boldsymbol{\Sigma}
 \qquad\text{(5)}
 ```
 
-with corresponding marginal distribution
+and marginalizing out $`F_i`$ yields the unconditional distribution
 
 ```math
-Y_i \sim \mathcal{N}_p(\mu,\boldsymbol{\Lambda}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma}),
-\quad \text{iid for } i=1,\ldots,n.
+Y_i \stackrel{\mathrm{iid}}{\sim} \mathcal{N}_p(\mu,\boldsymbol{\Lambda}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma}),
+\quad i=1,\ldots,n.
 \qquad\text{(6)}
 ```
 
-Without loss of generality we may assume $`\mu=0_p`$, although this is not a necessary assumption.
+Without loss of generality, one may assume $`\mu=0_p`$, though this is not required in what follows.
 
 ### 1.2 Assumptions at a glance
 
-1. **Latent linear structure (1).** Each $`p`$-dimensional response is a linear function of $`q<p`$ latent factors plus additive error, $`Y_i=\mu+\boldsymbol{\Lambda}F_i+\varepsilon_i`$; $`q`$ is treated as fixed and known.
-2. **Factor distribution (2).** $`F_i\sim\mathcal{N}_q(0_q,\mathbf{I}_q)`$, drawn independently across observations: factors are uncorrelated, homoscedastic and standardized (zero mean, unit variance).
-3. **Error distribution (3).** $`\varepsilon_i\sim\mathcal{N}_p(0_p,\boldsymbol{\Sigma})`$, independent across $`i`$ and independent of the factors.
-4. **Diagonal error covariance (4).** $`\boldsymbol{\Sigma}=\mathrm{diag}(\sigma_1^2,\ldots,\sigma_p^2)`$: uniquenesses are mutually independent, which is what makes this a *strict* factor structure.
-5. **Conditional law (5).** Given $`F_i`$, $`Y_i`$ is normal with mean $`\mu+\boldsymbol{\Lambda}F_i`$ and covariance $`\boldsymbol{\Sigma}`$, independently across $`i`$.
-6. **Marginal law (6).** Integrating out $`F_i`$ gives $`Y_i\sim\mathcal{N}_p(\mu,\boldsymbol{\Lambda}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma})`$ iid, hence $`\mathrm{Cov}(Y_i)=\boldsymbol{\Lambda}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma}`$: the latent factors are the only source of correlation among the measurements, the defining characteristic of factor analytic models.
+1. **Latent linear structure (1).** Each $`p`$-dimensional response is a linear function of $`q<p`$ latent factors plus additive error, $`Y_i=\mu+\boldsymbol{\Lambda}F_i+\varepsilon_i`$, with $`q`$ fixed and known.
+2. **Factor distribution (2).** $`F_i\stackrel{\mathrm{iid}}{\sim}\mathcal{N}_q(0_q,\mathbf{I}_q)`$: latent factors are uncorrelated, homoscedastic, and standardized (zero mean, unit variance).
+3. **Error distribution (3).** $`\varepsilon_i\stackrel{\mathrm{iid}}{\sim}\mathcal{N}_p(0_p,\boldsymbol{\Sigma})`$, independent of the latent factors.
+4. **Diagonal error covariance (4).** $`\boldsymbol{\Sigma}=\mathrm{diag}(\sigma_1^2,\ldots,\sigma_p^2)`$: idiosyncratic errors are mutually independent, which defines a *strict* factor structure.
+5. **Conditional law (5).** Given $`F_i`$, the observations $`Y_i`$ are independent and normally distributed with mean $`\mu+\boldsymbol{\Lambda}F_i`$ and covariance $`\boldsymbol{\Sigma}`$.
+6. **Marginal law (6).** Integrating out $`F_i`$ gives $`Y_i\stackrel{\mathrm{iid}}{\sim}\mathcal{N}_p(\mu,\boldsymbol{\Lambda}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma})`$, so $`\mathrm{Cov}(Y_i)=\boldsymbol{\Lambda}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma}`$. Thus, the latent factors account for all dependence among the manifest variables — the defining feature of factor analysis.
 
 ---
 
 ## 2. Identifiability Problems
 
-Two sources of identifiability problems affect the model of Section 1: one for $`\boldsymbol{\Sigma}`$ (the *uniqueness problem*, Section 2.1) and one for the factor loadings $`\boldsymbol{\Lambda}`$ (orthogonal invariance, Section 2.2).
+The model of Section 1 is subject to two distinct identifiability issues: one concerning the error covariance $`\boldsymbol{\Sigma}`$ (the *uniqueness problem*, Section 2.1) and one concerning the factor loadings $`\boldsymbol{\Lambda}`$ (*orthogonal invariance*, Section 2.2).
 
 ### 2.1 Uniqueness problem: identifiability of $`\boldsymbol{\Sigma}`$
 
-Given that there are $`q`$ factors, the number of free parameters in the covariance matrix $`\boldsymbol{\Lambda}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma}`$ is $`p+pq-\tfrac{1}{2}q(q-1)`$, while the number of free parameters in the unconstrained covariance matrix of $`Y_i`$ is $`\tfrac{1}{2}p(p+1)`$. Hence, if a strict factor structure is present in the data, the number of parameters in the covariance matrix is reduced by
+With $`q`$ factors, the structured covariance matrix $`\boldsymbol{\Lambda}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma}`$ contains $`p+pq-\tfrac{1}{2}q(q-1)`$ free parameters (accounting for rotational symmetry), whereas an unconstrained $`p\times p`$ covariance matrix has $`\tfrac{1}{2}p(p+1)`$ free parameters. Imposing a strict factor structure therefore reduces the number of free covariance parameters by
 
 ```math
 \frac{1}{2}p(p+1)-\left[p+pq-\frac{1}{2}q(q-1)\right]
@@ -91,47 +91,49 @@ Given that there are $`q`$ factors, the number of free parameters in the covaria
 \qquad\text{(7)}
 ```
 
-The last expression is positive if $`q<\phi(p)`$, where
+This reduction is strictly positive when $`q<\phi(p)`$, where
 
 ```math
-\phi(p):=\frac{2p+1-\sqrt{8p+1}}{2},
+\phi(p):=\frac{2p+1-\sqrt{8p+1}}{2}
 \qquad\text{(8)}
 ```
 
-a quantity known as the Ledermann bound. Under the usual genericity and rank conditions, $`q<\phi(p)`$ suffices for $`\boldsymbol{\Sigma}`$ to be almost surely unique. We assume that the number of latent factors does not exceed $`\phi(p)`$; the equality $`q=\phi(p)`$ is a boundary case not covered by this strict-inequality sufficient condition.
+is the *Ledermann bound*. Under standard genericity and rank conditions, the strict inequality $`q<\phi(p)`$ is sufficient for $`\boldsymbol{\Sigma}`$ to be almost surely unique. Throughout, we assume $`q\le\phi(p)`$; the boundary case $`q=\phi(p)`$ is not covered by this strict-inequality sufficient condition.
 
-**Isotropic error model.** Non-identifiability does not necessarily take place when $`q>\phi(p)`$. A special case of the general FA model assumes an isotropic error model, that is, $`\boldsymbol{\Sigma}=\sigma^2\mathbf{I}_p`$ in Equation (4), resulting in the probabilistic principal component analysis framework. In such a case, the number of factors can be as large as $`p-1`$.
+**Isotropic error model.** Identifiability need not fail when $`q>\phi(p)`$ if additional structure is imposed. In particular, assuming isotropic errors $`\boldsymbol{\Sigma}=\sigma^2\mathbf{I}_p`$ in Equation (4) yields the probabilistic principal component analysis (PPCA) model, in which $`q`$ can be as large as $`p-1`$.
 
-**Heywood cases.** A related issue in estimating $`\boldsymbol{\Sigma}`$ is the phenomenon of so-called Heywood cases. Unconstrained likelihood optimization may produce negative estimates of one or more idiosyncratic variances, while optimization constrained to nonnegative variances may yield a boundary estimate of zero. An inverse-gamma prior with positive shape and scale parameters assigns support on $`(0,\infty)`$, so a proper posterior under this prior excludes nonpositive variances. Nevertheless, the posterior may have substantial mass or a mode near zero. A zero residual variance, if permitted as a boundary case of the model, would mean that the variation of the manifest variable in question was wholly explained by the latent factors.
+**Heywood cases.** A practical complication in estimating $`\boldsymbol{\Sigma}`$ is the occurrence of *Heywood cases*. Unconstrained likelihood maximization can produce negative estimates for one or more idiosyncratic variances $`\sigma_r^2`$, while optimization constrained to $`\sigma_r^2\ge 0`$ can hit the boundary at zero. A zero residual variance implies that the corresponding manifest variable is completely explained by the latent factors.
 
-Adjusting inverse-gamma shape and scale parameters can suppress posterior mass near zero, but does not impose a strictly positive lower bound: the prior density remains positive for every $`\sigma_r^2>0`$. If a hard bound $`\sigma_r^2\geq\delta>0`$ is required, it must be imposed through truncation or another prior whose support enforces that bound.
+In a Bayesian setting, an inverse-gamma prior with positive shape and scale parameters is supported on $`(0,\infty)`$, so a proper posterior automatically excludes nonpositive variances. Even so, the posterior may place substantial mass — or exhibit a mode — near zero. Tuning the inverse-gamma hyperparameters can suppress posterior mass near zero, but because the prior density remains strictly positive on all of $`(0,\infty)`$, it cannot enforce a hard lower bound. If a strict bound $`\sigma_r^2\geq\delta>0`$ is required, it must be imposed via prior truncation or an alternative prior supported on $`[\delta,\infty)`$.
 
 ### 2.2 Orthogonal invariance: identifiability of $`\boldsymbol{\Lambda}`$
 
-Given identifiability of $`\boldsymbol{\Sigma}`$, the second source of identifiability problems is related to orthogonal transformations of the matrix of factor loadings, which is the main focus here. A square matrix $`\mathbf{O}`$ is an *orthogonal* matrix if and only if $`\mathbf{O}^{\top}=\mathbf{O}^{-1}`$, that is, its inverse equals its transpose. The determinant of any orthogonal matrix is equal to $`1`$ or $`-1`$. Orthogonal matrices represent rotations which may be proper (if the determinant is positive) or improper (otherwise).
+Even when $`\boldsymbol{\Sigma}`$ is identifiable, the factor loadings $`\boldsymbol{\Lambda}`$ remain non-identifiable under orthogonal transformations — the central problem addressed in this document. A square matrix $`\mathbf{O}\in\mathbb{R}^{q\times q}`$ is *orthogonal* if and only if $`\mathbf{O}^{\top}=\mathbf{O}^{-1}`$, which implies $`\det(\mathbf{O})\in\{-1,1\}`$. Geometrically, orthogonal matrices represent proper rotations ($`\det(\mathbf{O})=1`$) or improper rotations / reflections ($`\det(\mathbf{O})=-1`$).
 
-Consider a $`q\times q`$ orthogonal matrix $`\mathbf{O}`$ and define $`\widetilde{F}_i=\mathbf{O}F_i`$. It follows that the representation
+For any $`q\times q`$ orthogonal matrix $`\mathbf{O}`$, define the rotated factors $`\widetilde{F}_i=\mathbf{O}F_i\sim\mathcal{N}_q(0_q,\mathbf{I}_q)`$. The transformed model
 
 ```math
 Y_i=\mu+\boldsymbol{\Lambda}\mathbf{O}^{\top}\widetilde{F}_i+\varepsilon_i
 \qquad\text{(9)}
 ```
 
-leads to the same marginal distribution of $`Y_i`$ as the one in Equation (6). The marginal likelihood is therefore invariant under $`\boldsymbol{\Lambda}\mapsto\boldsymbol{\Lambda}\mathbf O^\top`$. A proper posterior inherits this symmetry if the joint prior on the loadings and other model parameters is also invariant under this transformation, with the other parameters held fixed. For a posterior including the latent factors, the corresponding joint transformation is $`\boldsymbol{\Lambda}\mapsto\boldsymbol{\Lambda}\mathbf O^\top`$, $`F_i\mapsto\mathbf O F_i`$. For $`q\geq2`$, continuous symmetry produces orbits of equivalent parameter values; a posterior maximum on a nontrivial orbit is not an isolated mode. A non-invariant prior can break posterior symmetry without changing the non-identifiability of the likelihood.
+induces the exact same marginal distribution for $`Y_i`$ as Equation (6) because $`(\boldsymbol{\Lambda}\mathbf{O}^\top)(\boldsymbol{\Lambda}\mathbf{O}^\top)^\top=\boldsymbol{\Lambda}\boldsymbol{\Lambda}^\top`$. The marginal likelihood is therefore invariant under $`\boldsymbol{\Lambda}\mapsto\boldsymbol{\Lambda}\mathbf O^\top`$.
 
-The orthogonal invariance above follows from assumption (2), which yields the marginal covariance matrix $`\boldsymbol{\Lambda}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma}`$ in Equation (6). If instead $`F_i\sim\mathcal{N}_q(0_q,\boldsymbol{\Psi})`$, where $`\boldsymbol{\Psi}`$ is a fixed positive definite diagonal matrix with pairwise distinct entries, the marginal covariance becomes $`\boldsymbol{\Lambda}\boldsymbol{\Psi}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma}`$. The only Euclidean orthogonal transformations satisfying $`\mathbf O\boldsymbol{\Psi}\mathbf O^\top=\boldsymbol{\Psi}`$ are then diagonal sign matrices. Thus fixing distinct factor variances removes continuous orthogonal symmetries of the factor distribution, but preserves sign ambiguity. Ordinary column permutations remain symmetries if the diagonal entries of $`\boldsymbol{\Psi}`$ are permuted together with the loading columns; fixing their order excludes these simultaneous relabelings.
+A proper posterior inherits this invariance whenever the prior on $`\boldsymbol{\Lambda}`$ (with other parameters held fixed) is itself orthogonally invariant; when latent factors are sampled jointly, the invariance acts via $`(\boldsymbol{\Lambda},F_i)\mapsto(\boldsymbol{\Lambda}\mathbf O^\top,\mathbf O F_i)`$. For $`q\geq2`$, this continuous symmetry generates orbits of observationally equivalent parameter values, so any posterior maximum on a nontrivial orbit is a ridge rather than an isolated mode. Using a non-invariant prior can break the symmetry of the posterior, but it does not alter the rotational invariance of the likelihood.
 
-This restriction to orthogonal transformations does not establish general identifiability for unrestricted loadings. For any orthogonal $`\mathbf U`$, define
+**Unequal factor variances.** The orthogonal invariance above stems from assumption (2), which sets $`\mathrm{Cov}(F_i)=\mathbf{I}_q`$. If instead $`F_i\sim\mathcal{N}_q(0_q,\boldsymbol{\Psi})`$ for a fixed positive definite diagonal matrix $`\boldsymbol{\Psi}`$ with pairwise distinct diagonal entries, the marginal covariance becomes $`\boldsymbol{\Lambda}\boldsymbol{\Psi}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma}`$. The only orthogonal matrices satisfying $`\mathbf O\boldsymbol{\Psi}\mathbf O^\top=\boldsymbol{\Psi}`$ are diagonal sign matrices. Thus, fixing distinct factor variances eliminates continuous orthogonal symmetries of the factor distribution, leaving only sign ambiguity (and simultaneous column-and-variance permutations unless the diagonal of $`\boldsymbol{\Psi}`$ is ordered).
+
+However, fixing unequal factor variances does *not* identify unrestricted loadings. For any $`q\times q`$ orthogonal matrix $`\mathbf U`$, the generally nonorthogonal matrix
 
 ```math
-\mathbf B=\boldsymbol{\Psi}^{1/2}\mathbf U\boldsymbol{\Psi}^{-1/2},
-\qquad
+\mathbf B=\boldsymbol{\Psi}^{1/2}\mathbf U\boldsymbol{\Psi}^{-1/2}
+\quad\text{satisfies}\quad
 \mathbf B\boldsymbol{\Psi}\mathbf B^\top=\boldsymbol{\Psi}.
 ```
 
-Then $`\boldsymbol{\Lambda}\mathbf B`$ yields the same marginal covariance as $`\boldsymbol{\Lambda}`$, and the accompanying factor transformation is $`F_i\mapsto\mathbf B^{-1}F_i`$. For $`q\geq2`$, these transformations form a continuous family and are generally nonorthogonal when the factor variances are distinct. Fixed unequal factor variances alone therefore do not remove continuous non-identifiability. For $`q=1`$, the family reduces to sign changes.
+Replacing $`(\boldsymbol{\Lambda},F_i)`$ with $`(\boldsymbol{\Lambda}\mathbf B,\mathbf B^{-1}F_i)`$ leaves the marginal covariance $`\boldsymbol{\Lambda}\boldsymbol{\Psi}\boldsymbol{\Lambda}^\top+\boldsymbol{\Sigma}`$ unchanged. For $`q\geq2`$, this still forms a continuous family of equivalent parameterizations; only for $`q=1`$ does it reduce to sign changes.
 
-For the standardized-factor model (2), the approach followed here starts with unconstrained loading draws and seeks a common orientation *ex post*, by post-processing the MCMC sample. This selects a representation for posterior summaries; it does not make the original statistical model identifiable. The orthogonal RSP transformations below are specified for model (2), not for an arbitrary fixed unequal $`\boldsymbol{\Psi}`$.
+**Post-processing perspective.** For the standardized-factor model (2), the approach taken here draws unconstrained loadings during MCMC sampling and resolves their orientation *ex post* by post-processing the posterior sample. This selects a coherent representation for posterior summaries without imposing identifying constraints on the underlying statistical model. All orthogonal Rotation-Sign-Permutation (RSP) transformations below are formulated for the standardized model (2), rather than for general unequal $`\boldsymbol{\Psi}`$.
 
 ---
 
@@ -139,7 +141,7 @@ For the standardized-factor model (2), the approach followed here starts with un
 
 ### 3.1 Notation and definitions
 
-Let $`\mathcal{T}_q`$ denote the set of all $`q!`$ permutations of $`\{1,\ldots,q\}`$. For a given $`\nu=(\nu_1,\ldots,\nu_q)\in\mathcal{T}_q`$, consider the matrix $`\dot{\boldsymbol{\Lambda}}`$ where the $`j`$-th column of $`\boldsymbol{\Lambda}`$ is mapped to the $`\nu_j`$-th column of $`\dot{\boldsymbol{\Lambda}}`$, for $`j=1,\ldots,q`$. This transformation can be expressed using a $`q\times q`$ *permutation matrix* $`\mathbf{P}`$ whose $`i,j`$ element is equal to
+Let $`\mathcal{T}_q`$ denote the symmetric group of all $`q!`$ permutations of $`\{1,\ldots,q\}`$. Under the *column-mapping convention* of this subsection, a permutation $`\nu=(\nu_1,\ldots,\nu_q)\in\mathcal{T}_q`$ sends the $`j`$-th column of $`\boldsymbol{\Lambda}`$ to the $`\nu_j`$-th column of the permuted matrix $`\dot{\boldsymbol{\Lambda}}`$, for $`j=1,\ldots,q`$. Equivalently, $`\dot{\boldsymbol{\Lambda}}=\boldsymbol{\Lambda}\mathbf{P}`$, where $`\mathbf{P}`$ is the $`q\times q`$ *permutation matrix* with entries
 
 ```math
 (\mathbf{P})_{ij}=
@@ -147,12 +149,10 @@ Let $`\mathcal{T}_q`$ denote the set of all $`q!`$ permutations of $`\{1,\ldots,
 1, & \text{if } \nu_i=j,\\
 0, & \text{otherwise},
 \end{cases}
-\quad i=1,\ldots,q;\ j=1,\ldots,q.
+\quad i,j=1,\ldots,q.
 ```
 
-The transformed matrix is simply written as $`\dot{\boldsymbol{\Lambda}}=\boldsymbol{\Lambda}\mathbf{P}`$. A permutation matrix is a special case of an orthogonal matrix.
-
-For example, assume that $`\boldsymbol{\Lambda}`$ has three columns and that $`\nu=(3,1,2)\in\mathcal{T}_3`$. This means that columns 1, 2, 3 become columns 3, 1, 2, respectively. This transformation corresponds to the $`3\times 3`$ permutation matrix
+Every permutation matrix is orthogonal. For example, when $`q=3`$ and $`\nu=(3,1,2)\in\mathcal{T}_3`$, columns 1, 2, and 3 of $`\boldsymbol{\Lambda}`$ move to positions 3, 1, and 2, respectively:
 
 ```math
 \mathbf{P}=
@@ -160,12 +160,8 @@ For example, assume that $`\boldsymbol{\Lambda}`$ has three columns and that $`\
 0 & 0 & 1\\
 1 & 0 & 0\\
 0 & 1 & 0
-\end{pmatrix}.
-```
-
-Obviously, $`\boldsymbol{\Lambda}\mathbf{P}`$ results in the desired reordering of columns:
-
-```math
+\end{pmatrix},
+\qquad
 \dot{\boldsymbol{\Lambda}}=\boldsymbol{\Lambda}\mathbf{P}=
 \begin{pmatrix}
 \lambda_{11} & \lambda_{12} & \lambda_{13}\\
@@ -185,23 +181,17 @@ Obviously, $`\boldsymbol{\Lambda}\mathbf{P}`$ results in the desired reordering 
 \end{pmatrix}.
 ```
 
-A *signed permutation matrix* is a square matrix which has precisely one nonzero entry in every row and column and whose only nonzero entries are $`1`$ and/or $`-1`$. A $`q\times q`$ signed permutation matrix $`\mathbf{Q}`$ can be expressed as
+A *signed permutation matrix* is a square matrix with exactly one nonzero entry in each row and each column, that entry being $`+1`$ or $`-1`$. Under the column-mapping convention, any $`q\times q`$ signed permutation matrix $`\mathbf{Q}`$ factors as
 
 ```math
 \mathbf{Q}=\mathbf{S}\mathbf{P},
 \qquad\text{(10)}
 ```
 
-where $`\mathbf{S}=\mathrm{diag}(s_1,\ldots,s_q)`$ is a $`q\times q`$ diagonal matrix with diagonal entries equal to $`s_j\in\{-1,1\}`$, $`j=1,\ldots,q`$, and $`\mathbf{P}`$ is a $`q\times q`$ permutation matrix. Equation (10) uses the column-mapping convention of this subsection; the assignment convention of Section 3.2.2 uses its transpose. For example,
+where $`\mathbf{S}=\mathrm{diag}(s_1,\ldots,s_q)`$ is a diagonal *sign matrix* with $`s_j\in\{-1,1\}`$ and $`\mathbf{P}`$ is a permutation matrix. (The assignment convention introduced in Section 3.2.2 uses the transpose factorization $`\mathbf{Q}=\mathbf{P}^\top\mathbf{S}`$.) For instance, flipping the signs of the first two columns and then applying $`\nu=(3,1,2)`$ gives
 
 ```math
-\mathbf{Q}=
-\begin{pmatrix}
-0 & 0 & -1\\
--1 & 0 & 0\\
-0 & 1 & 0
-\end{pmatrix}
-=
+\mathbf{Q}=\mathbf{S}\mathbf{P}=
 \begin{pmatrix}
 -1 & 0 & 0\\
 0 & -1 & 0\\
@@ -211,10 +201,16 @@ where $`\mathbf{S}=\mathrm{diag}(s_1,\ldots,s_q)`$ is a $`q\times q`$ diagonal m
 0 & 0 & 1\\
 1 & 0 & 0\\
 0 & 1 & 0
-\end{pmatrix}.
+\end{pmatrix}
+=
+\begin{pmatrix}
+0 & 0 & -1\\
+-1 & 0 & 0\\
+0 & 1 & 0
+\end{pmatrix},
 ```
 
-It is evident that applying a signed permutation $`\mathbf{Q}`$ to a $`p\times q`$ matrix $`\boldsymbol{\Lambda}`$ results in a transformed matrix $`\mathring{\boldsymbol{\Lambda}}`$ arising from the corresponding signed permutation of its columns. For example
+which maps $`\boldsymbol{\Lambda}`$ to the sign-permuted matrix
 
 ```math
 \mathring{\boldsymbol{\Lambda}}=\boldsymbol{\Lambda}\mathbf{Q}
@@ -223,168 +219,172 @@ It is evident that applying a signed permutation $`\mathbf{Q}`$ to a $`p\times q
 -\lambda_{12} & \lambda_{13} & -\lambda_{11}\\
 \vdots & \vdots & \vdots \\
 -\lambda_{p2} & \lambda_{p3} & -\lambda_{p1}
-\end{pmatrix}
+\end{pmatrix}.
 ```
 
-is generated by first switching the signs of the first two columns and then reordering the columns according to $`\nu=(3,1,2)`$.
-
-Operations and/or special matrices of factor loadings will be denoted as follows; symbols introduced in Section 3.2 are included here for reference:
+The table below summarizes the notation used for loading matrices, transformations, and optimization quantities throughout Section 3:
 
 | Symbol | Meaning |
 |---|---|
-| $`\widetilde{\boldsymbol{\Lambda}}`$ | varimax rotated |
-| $`\dot{\boldsymbol{\Lambda}}`$ | column-permuted |
-| $`\mathring{\boldsymbol{\Lambda}}`$ | sign-permuted (a signed permutation of the columns) |
-| $`\boldsymbol{\Lambda}^\star`$ | reference matrix of factor loadings |
-| $`\mathbf{O}`$ | orthogonal matrix; $`\mathbf{O}^{(t)}`$ is the varimax rotation at draw $`t`$ |
-| $`\mathbf{P}`$ | column-mapping permutation matrix of Section 3.1 |
-| $`\mathbf{S}`$ | sign matrix, $`\mathrm{diag}(s_1,\ldots,s_q)`$ with $`s_j\in\{-1,1\}`$ |
-| $`\mathbf{Q}`$ | signed permutation matrix; $`\mathbf Q=\mathbf S\mathbf P`$ for column mapping and $`\mathbf Q=\mathbf P^\top\mathbf S`$ for assignment |
-| $`\mathbf{R}^{(t)}`$ | total orthogonal transform at draw $`t`$, $`\mathbf R^{(t)}=\mathbf O^{(t)}\mathbf Q^{(t)}`$ |
-| $`\mathcal{T}_q`$ | set of all $`q!`$ permutations of $`\{1,\ldots,q\}`$ |
-| $`\mathcal{Q}_q`$ | set of all $`q\times q`$ signed permutation matrices |
-| $`s`$ | sign vector $`(s_1,\ldots,s_q)`$, $`s_j\in\{-1,1\}`$ |
-| $`\nu`$ | permutation vector; read as an assignment (see the note below) |
-| $`\Psi`$ | objective function of the signed-permutation stage |
-| $`\mathcal{L}^{(t)}_{s,\nu}`$ | per-draw loss of the signed-permutation stage |
+| $`\widetilde{\boldsymbol{\Lambda}}`$ | Varimax-rotated loading matrix |
+| $`\dot{\boldsymbol{\Lambda}}`$ | Column-permuted loading matrix |
+| $`\mathring{\boldsymbol{\Lambda}}`$ | Sign-permuted (aligned) loading matrix |
+| $`\boldsymbol{\Lambda}^\star`$ | Reference matrix of factor loadings |
+| $`\mathbf{O}`$ | Orthogonal matrix; $`\mathbf{O}^{(t)}`$ is the varimax rotation for draw $`t`$ |
+| $`\mathbf{P}`$ | Column-mapping permutation matrix of Section 3.1 |
+| $`\mathbf{S}`$ | Diagonal sign matrix, $`\mathrm{diag}(s_1,\ldots,s_q)`$ with $`s_j\in\{-1,1\}`$ |
+| $`\mathbf{Q}`$ | Signed permutation matrix: $`\mathbf Q=\mathbf S\mathbf P`$ (column mapping) or $`\mathbf Q=\mathbf P^\top\mathbf S`$ (assignment) |
+| $`\mathbf{R}^{(t)}`$ | Total orthogonal transform for draw $`t`$, $`\mathbf R^{(t)}=\mathbf O^{(t)}\mathbf Q^{(t)}`$ |
+| $`\mathcal{T}_q`$ | Set of all $`q!`$ permutations of $`\{1,\ldots,q\}`$ |
+| $`\mathcal{Q}_q`$ | Set of all $`q\times q`$ signed permutation matrices |
+| $`s`$ | Sign vector $`(s_1,\ldots,s_q)\in\{-1,1\}^q`$ |
+| $`\nu`$ | Permutation vector $`(\nu_1,\ldots,\nu_q)\in\mathcal{T}_q`$ (read as an assignment in Section 3.2; see note below) |
+| $`\Psi`$ | Global objective function of the signed-permutation stage |
+| $`\mathcal{L}^{(t)}_{s,\nu}`$ | Per-draw squared Frobenius loss in the signed-permutation stage |
 
-In the signed-permutation stage, $`\nu`$ is read as an assignment: reference column $`j`$ is matched to column $`\nu_j`$ of the draw.
+> **Assignment convention note:** Starting in Section 3.2.2, $`\nu`$ is read as an *assignment*: reference column $`j`$ is matched to column $`\nu_j`$ of the rotated draw.
 
 ### 3.2 Rotation-Sign-Permutation (RSP) post-processing algorithm
 
-The RSP algorithm seeks a common orientation for an MCMC sample of factor loadings in two stages: a per-draw varimax iteration, followed by a recursive signed permutation alignment of the whole sample towards a common reference. These stages do not guarantee a unique orientation or complete removal of rotational discrepancies.
+The RSP algorithm aligns an MCMC sample of factor loadings $`\{\boldsymbol{\Lambda}^{(t)}\}_{t=1}^T`$ in two stages:
+
+1. **Per-draw varimax rotation:** each draw is rotated independently to a canonical sparse orientation.
+2. **Signed-permutation alignment:** all rotated draws are aligned jointly to a common reference matrix via alternating minimization over signed permutations and the reference.
+
+These post-processing stages substantially reduce rotational and label switching, though they do not guarantee a unique global orientation or complete removal of rotational discrepancies.
 
 #### 3.2.1 Varimax rotation
 
-Given a $`p\times q`$ matrix $`\boldsymbol{\Lambda}`$ of factor loadings, the varimax problem is to find a $`q\times q`$ rotation matrix $`\boldsymbol{\Phi}`$ such that the sum of the within-factor variances of squared factor loadings of the rotated matrix of loadings $`\widetilde{\boldsymbol{\Lambda}}=\boldsymbol{\Lambda}\boldsymbol{\Phi}`$ is maximized. That is, the optimization problem is summarized by
+Given a $`p\times q`$ loading matrix $`\boldsymbol{\Lambda}`$, the varimax criterion seeks a $`q\times q`$ orthogonal matrix $`\boldsymbol{\Phi}`$ that maximizes the sum of within-column variances of the squared rotated loadings $`\widetilde{\boldsymbol{\Lambda}}=\boldsymbol{\Lambda}\boldsymbol{\Phi}`$:
 
 ```math
 \begin{aligned}
 \text{maximize}\quad & \frac{1}{4}\sum_{j=1}^{q}\left[\left(\sum_{r=1}^{p}\widetilde\lambda^4_{rj}\right)-\frac{1}{p}\left(\sum_{r=1}^{p}\widetilde\lambda^2_{rj}\right)^2\right]\\
-\text{subject to}\quad & \boldsymbol{\Phi}^\top \boldsymbol{\Phi} = \mathbf{I}_q\\
+\text{subject to}\quad & \boldsymbol{\Phi}^\top \boldsymbol{\Phi} = \mathbf{I}_q,\\
 \text{where}\quad & \widetilde\lambda_{rj}=\sum_{k=1}^{q}\lambda_{rk}\phi_{kj},\quad r=1,\ldots,p;\ j=1,\ldots,q.
 \end{aligned}
 \qquad\text{(11)}
 ```
 
-The original approach for solving the varimax problem increases the objective function by successively rotating pairs of factors; subsequent developments based on matrix formulations rotate all factors simultaneously in order to improve the objective function.
+Classical varimax algorithms maximize (11) by cyclically rotating pairs of columns, whereas modern matrix formulations update all $`q`$ columns simultaneously via polar / singular value decompositions.
 
-In the implementation, a single-start varimax iteration is run separately for each MCMC draw, using the relative stagnation parameter $`\varepsilon=10^{-5}`$ described in Section 4.1. This parameter is not an accuracy bound for maximizing (11). Given simulated loadings $`\boldsymbol{\Lambda}^{(t)}=(\lambda_{rj}^{(t)})`$, $`t=1,\ldots,T`$, we denote the rotated output returned by the iteration as $`\widetilde{\boldsymbol{\Lambda}}^{(t)}=(\widetilde\lambda_{rj}^{(t)})`$, where $`T`$ is the size of the MCMC sample. Section 4.1 describes the updates, stopping rule and limitations.
+For each MCMC draw $`\boldsymbol{\Lambda}^{(t)}=(\lambda_{rj}^{(t)})`$, $`t=1,\ldots,T`$, a single-start matrix-form varimax iteration is run independently with relative stagnation parameter $`\varepsilon=10^{-5}`$ (see Section 4.1), yielding the rotated draw $`\widetilde{\boldsymbol{\Lambda}}^{(t)}=(\widetilde\lambda_{rj}^{(t)})`$. Note that $`\varepsilon`$ governs relative stagnation of the step size rather than optimality accuracy for (11).
 
-For draws that differ only by orthogonal transformations, the remaining ambiguity reduces to signed permutations under two additional conditions: each varimax run attains a global maximum of (11), and the maximizing rotated loading matrices are unique up to signed permutations. Neither condition holds in general. In particular, different local optima or inequivalent global maxima can leave rotational discrepancies that the signed-permutation stage cannot remove. Ordinary posterior draws also vary in ways other than orientation, so exact agreement of all aligned draws is not expected.
+If two draws differ purely by an orthogonal transformation, varimax rotation reduces their discrepancy to a signed permutation *provided* that (i) both runs attain a global maximum of (11), and (ii) the global maximizer is unique up to signed permutations. Neither condition holds universally: distinct local maxima or non-equivalent global maxima can leave residual rotational differences that signed permutations cannot remove. Furthermore, posterior draws also exhibit genuine sampling variability beyond orthogonal rotation, so exact equality across aligned draws is not expected.
 
 #### 3.2.2 Signed permutations towards a reference
 
-After the per-draw varimax iteration, the second stage minimizes the squared distance of the rotated output to a reference matrix $`\boldsymbol{\Lambda}^{\star}`$ over signed permutations. The minimum need not be small or zero. For the moment $`\boldsymbol{\Lambda}^{\star}`$ is assumed fixed; this assumption is relaxed in Section 3.2.3. Let $`\mathcal{Q}_q`$ denote the set of $`q\times q`$ signed permutation matrices. The optimization problem is stated as
+In the second stage, each varimax-rotated draw $`\widetilde{\boldsymbol{\Lambda}}^{(t)}`$ is matched to a reference loading matrix $`\boldsymbol{\Lambda}^{\star}`$ by minimizing the squared Frobenius distance over the discrete set $`\mathcal{Q}_q`$ of $`q\times q`$ signed permutation matrices. Treating $`\boldsymbol{\Lambda}^{\star}`$ as fixed for the moment (relaxed in Section 3.2.3), the problem is
 
 ```math
 \begin{aligned}
-\text{minimize}\quad & \sum_{t=1}^{T}\left\|\widetilde{\boldsymbol{\Lambda}}^{(t)}\mathbf{Q}^{(t)}-\boldsymbol{\Lambda}^{\star}\right\|^2\\
+\text{minimize}\quad & \sum_{t=1}^{T}\left\|\widetilde{\boldsymbol{\Lambda}}^{(t)}\mathbf{Q}^{(t)}-\boldsymbol{\Lambda}^{\star}\right\|_F^2\\
 \text{subject to}\quad & \mathbf{Q}^{(t)}\in\mathcal{Q}_q,\quad t=1,\ldots,T,
 \end{aligned}
 \qquad\text{(12)}
 ```
 
-where $`\|\mathbf{A}\|=\sqrt{\sum_i\sum_j\alpha_{ij}^2}`$ denotes the Frobenius norm on the matrix space. Notice that (12), with the signed-permutation constraint relaxed to $`\mathbf{Q}^{\top}\mathbf{Q}=\mathbf{I}_q`$, is the Orthogonal Procrustes problem, for which an analytical solution is available: for the $`q\times q`$ cross-product $`\mathbf{C}^{(t)}=\boldsymbol{\Lambda}^{\star\top}\widetilde{\boldsymbol{\Lambda}}^{(t)}`$ with singular value decomposition $`\mathbf{C}^{(t)}=\mathbf{U}\mathbf{D}\mathbf{V}^{\top}`$, the minimizer of $`\|\widetilde{\boldsymbol{\Lambda}}^{(t)}\mathbf{Q}-\boldsymbol{\Lambda}^{\star}\|`$ over all orthogonal $`\mathbf{Q}`$ is $`\mathbf{Q}^{(t)}=\mathbf{V}\mathbf{U}^{\top}`$ (improper rotations, with determinant $`-1`$, are allowed). The problem addressed here retains the restricted discrete parameter space $`\mathcal{Q}_q`$ rather than the set of all orthogonal matrices.
+where $`\|\mathbf{A}\|_F=\sqrt{\sum_i\sum_j a_{ij}^2}`$ denotes the Frobenius norm. (If $`\mathcal{Q}_q`$ were relaxed to the full orthogonal group $`\mathbf{Q}^\top\mathbf{Q}=\mathbf{I}_q`$, (12) would reduce to the classical Orthogonal Procrustes problem, solved analytically by $`\mathbf{Q}^{(t)}=\mathbf{V}\mathbf{U}^\top`$ from the SVD $`\boldsymbol{\Lambda}^{\star\top}\widetilde{\boldsymbol{\Lambda}}^{(t)}=\mathbf{U}\mathbf{D}\mathbf{V}^\top`$, allowing improper rotations with $`\det(\mathbf{Q}^{(t)})=-1`$. Here, however, we restrict $`\mathbf{Q}^{(t)}`$ to the discrete group $`\mathcal{Q}_q`$.)
 
-Parameterize an assignment signed permutation by the sign vector $`s=(s_1,\ldots,s_q)`$ and the permutation vector $`\nu=(\nu_1,\ldots,\nu_q)\in\mathcal{T}_q`$: reference column $`j`$ is matched to column $`\nu_j`$ of the rotated draw, scaled by the sign $`s_j`$. Its matrix $`\mathbf Q`$ is defined entrywise by $`(\mathbf Q)_{\nu_j,j}=s_j`$, with all other entries equal to zero. If $`\mathbf P`$ and $`\mathbf S`$ are the matrices built from the same pair under the column-mapping convention of Section 3.1, then $`\mathbf Q=\mathbf P^\top\mathbf S=(\mathbf S\mathbf P)^\top`$; the multiplication order is essential because signs and permutations do not generally commute. With this parameterization,
+Under the *assignment parameterization*, a signed permutation is represented by a sign vector $`s=(s_1,\ldots,s_q)\in\{-1,1\}^q`$ and a permutation vector $`\nu=(\nu_1,\ldots,\nu_q)\in\mathcal{T}_q`$: reference column $`j`$ is matched to draw column $`\nu_j`$ multiplied by $`s_j`$. The corresponding matrix $`\mathbf Q\in\mathcal{Q}_q`$ has entries $`(\mathbf Q)_{\nu_j,j}=s_j`$ and zeros elsewhere. In terms of the column-mapping matrices $`\mathbf P`$ and $`\mathbf S`$ of Section 3.1 constructed from the same $`(s,\nu)`$, we have $`\mathbf Q=\mathbf P^\top\mathbf S=(\mathbf S\mathbf P)^\top`$; the multiplication order matters because diagonal sign matrices and permutation matrices do not commute in general. Under this parameterization,
 
 ```math
-\left\|\widetilde{\boldsymbol{\Lambda}}\mathbf{Q}-\boldsymbol{\Lambda}^{\star}\right\|^2
-=\sum_{r=1}^{p}\sum_{j=1}^{q}\left(s_j\widetilde\lambda_{r\nu_j}-\lambda^{\star}_{rj}\right)^2.
+\left\|\widetilde{\boldsymbol{\Lambda}}\mathbf{Q}-\boldsymbol{\Lambda}^{\star}\right\|_F^2
+=\sum_{r=1}^{p}\sum_{j=1}^{q}\left(s_j\widetilde\lambda_{r\nu_j}-\lambda^{\star}_{rj}\right)^2,
 ```
 
-Thus, (12) can also be written as
+so problem (12) takes the coordinate form
 
 ```math
 \begin{aligned}
-\min\ \Psi(\boldsymbol{\Lambda}^{\star},s,\nu)
-&=\sum_{t=1}^{T}\mathcal{L}_{s^{(t)},\nu^{(t)}}^{(t)}\\
-&=\sum_{t=1}^{T}\sum_{r=1}^{p}\sum_{j=1}^{q}\left(s_j^{(t)}\widetilde\lambda_{r\nu_j^{(t)}}^{(t)}-\lambda^{\star}_{rj}\right)^2\\
-\text{subject to}\quad & s_j^{(t)}\in\{-1,1\},\quad t=1,\ldots,T;\ j=1,\ldots,q\\
-\text{and}\quad & \nu^{(t)}\in\mathcal{T}_q,\quad t=1,\ldots,T,
+\min_{\boldsymbol{\Lambda}^\star,\,s,\,\nu}\ \Psi(\boldsymbol{\Lambda}^{\star},s,\nu)
+&=\sum_{t=1}^{T}\mathcal{L}_{s^{(t)},\nu^{(t)}}^{(t)}
+=\sum_{t=1}^{T}\sum_{r=1}^{p}\sum_{j=1}^{q}\left(s_j^{(t)}\widetilde\lambda_{r\nu_j^{(t)}}^{(t)}-\lambda^{\star}_{rj}\right)^2\\
+\text{subject to}\quad & s_j^{(t)}\in\{-1,1\},\quad t=1,\ldots,T;\ j=1,\ldots,q,\\
+& \nu^{(t)}\in\mathcal{T}_q,\quad t=1,\ldots,T,
 \end{aligned}
 \qquad\text{(13)}
 ```
 
-where we have also defined the per-draw loss
+with per-draw loss
 
 ```math
 \mathcal{L}_{s,\nu}^{(t)}:=\sum_{r=1}^{p}\sum_{j=1}^{q}\left(s_j\widetilde\lambda_{r\nu_j}^{(t)}-\lambda^{\star}_{rj}\right)^2.
 \qquad\text{(14)}
 ```
 
-**Index convention.** The assignment reading of $`\nu`$ stated above is used throughout this section; it is the inverse of the column mapping of Section 3.1. Both readings span the same family of signed permutations, so the optimal value of $`\Psi`$ and the optimal aligned draws are identical; only the correspondence between a stored pair $`(s,\nu)`$ and a signed permutation matrix differs.
+**Index convention.** The assignment convention above is used throughout the remainder of the document and is the inverse of the column-mapping convention of Section 3.1. Both conventions parameterize the same set $`\mathcal{Q}_q`$, so the minimum value of $`\Psi`$ and the aligned loading matrices $`\mathring{\boldsymbol{\Lambda}}^{(t)}`$ are identical; only the correspondence between a stored pair $`(s,\nu)`$ and the matrix $`\mathbf{Q}`$ changes.
 
-Obviously, $`\Psi`$ in (13) also depends on $`\{\widetilde{\boldsymbol{\Lambda}}\}_{t=1}^{T}`$, but this is already fixed at this second stage, hence it is omitted from the notation on the left-hand side. The reference loading matrix $`\boldsymbol{\Lambda}^{\star}=(\lambda^{\star}_{rj})`$ is not known, thus it is approximated by a recursive algorithm, in the spirit of the label switching problem in Bayesian mixture analysis.
+Because the rotated sample $`\{\widetilde{\boldsymbol{\Lambda}}^{(t)}\}_{t=1}^{T}`$ is fixed during Stage 2, its dependence is suppressed in the notation $`\Psi(\boldsymbol{\Lambda}^{\star},s,\nu)`$. In practice, the reference matrix $`\boldsymbol{\Lambda}^{\star}=(\lambda^{\star}_{rj})`$ is unknown and is estimated jointly with $`(s,\nu)`$ by alternating minimization, analogous to relabeling algorithms for label switching in Bayesian mixture models.
 
 #### 3.2.3 The recursive algorithm
 
-The Varimax Rotation-Sign-Permutation (RSP) post-processing algorithm alternates two coordinate-wise minimizations of $`\Psi(\boldsymbol{\Lambda}^{\star},s,\nu)`$:
+The RSP algorithm minimizes $`\Psi(\boldsymbol{\Lambda}^{\star},s,\nu)`$ by alternating two coordinate-descent updates:
 
-- the **Sign-Permutation (SP) step** minimizes with respect to $`(s,\nu)`$ for a fixed reference matrix;
-- the **Reference-Loading Matrix Estimation (RLME) step** minimizes with respect to $`\boldsymbol{\Lambda}^{\star}`$ for fixed signed permutations.
+- **Sign-Permutation (SP) step:** minimize $`\Psi`$ with respect to $`\{(s^{(t)},\nu^{(t)})\}_{t=1}^T`$ for a fixed reference matrix $`\boldsymbol{\Lambda}^{\star}`$.
+- **Reference-Loading Matrix Estimation (RLME) step:** minimize $`\Psi`$ with respect to $`\boldsymbol{\Lambda}^{\star}`$ for fixed signed permutations.
 
-Although each SP subproblem is solved exactly, the outer algorithm is an alternating minimization and does not guarantee a global optimum of (13).
+Although both coordinate subproblems are solved globally and in closed form / polynomial time, the alternating minimization is nonconvex over the joint space and is only guaranteed to converge to a coordinate-wise stationary point rather than a global minimum of (13).
 
-**Algorithm 1 (Varimax-RSP, current implementation).**
+---
 
-- **Input:** simulated MCMC sample of factor loadings $`\{\boldsymbol{\Lambda}^{(t)},t=1,\ldots,T\}`$.
-- **Output:** the aligned sample $`\{\mathring{\boldsymbol{\Lambda}}^{(t)},t=1,\ldots,T\}`$ and its final reference matrix, together with the diagnostics described below.
-- **Step 1 — Varimax rotation:** for each $`t=1,\ldots,T`$, run the iteration of Section 4.1 on $`\boldsymbol{\Lambda}^{(t)}`$ to obtain $`\widetilde{\boldsymbol{\Lambda}}^{(t)}`$ and its rotation matrix; optimality for (11) is not certified.
-- **Step 2 — Reference initialization.** An explicitly supplied reference takes priority. Otherwise, initialize $`\mathbf M_0=\boldsymbol{\Lambda}^{\star}`$ by one of the following rules:
-  - **`mean`:** set $`\mathbf M_0=T^{-1}\sum_{t=1}^{T}\widetilde{\boldsymbol{\Lambda}}^{(t)}`$. This is the original R behavior, equivalently obtained by initializing all signed permutations to the identity and applying an initial RLME update.
-  - **`auto` (default) or `draw`:** select the representative draw $`t_0=\mathop{\mathrm{argmax}}_t\|\widetilde{\boldsymbol{\Lambda}}^{(t)}\|_F`$. Using $`\widetilde{\boldsymbol{\Lambda}}^{(t_0)}`$ as a temporary reference, perform one complete SP--RLME sweep over all draws and set $`\mathbf M_0`$ to the resulting aligned mean; it is not generally the representative draw itself. `auto` additionally uses the near-zero mean-cancellation diagnostic for verbose logging. Both rules otherwise follow the same representative initialization, and the diagnostic never acts as a condition that switches initialization rules. For all-zero input, the mean reference is retained.
+**Algorithm 1: Varimax-RSP Post-Processing (Current Implementation)**
 
-**Step 3 — Alternating SP--RLME sweeps.** For $`k=1,\ldots,K`$, with default $`K=\texttt{max\_iter}=100`$:
+- **Input:** MCMC sample of factor loading matrices $`\{\boldsymbol{\Lambda}^{(t)}\}_{t=1}^T`$.
+- **Output:** Aligned loading sample $`\{\mathring{\boldsymbol{\Lambda}}^{(t)}\}_{t=1}^T`$, final reference matrix $`\mathbf M`$, signed-permutation indices, optional orthogonal transforms, and convergence diagnostics.
 
-**3.1 SP step.** Given $`\mathbf M_{k-1}`$, solve (15) independently for every MCMC draw $`t=1,\ldots,T`$:
+1. **Step 1 — Per-draw varimax rotation.** For each $`t=1,\ldots,T`$, apply the matrix-form varimax iteration of Section 4.1 to $`\boldsymbol{\Lambda}^{(t)}`$ to obtain the rotated loadings $`\widetilde{\boldsymbol{\Lambda}}^{(t)}`$ and rotation matrix $`\mathbf{O}^{(t)}`$ (global optimality for (11) is not certified).
+2. **Step 2 — Reference initialization.** If a user-supplied reference matrix is provided, set $`\mathbf M_0`$ to it. Otherwise, initialize $`\mathbf M_0`$ according to the selected mode:
+   - **`mean`:** set $`\mathbf M_0=T^{-1}\sum_{t=1}^{T}\widetilde{\boldsymbol{\Lambda}}^{(t)}`$. This matches the original R implementation and is equivalent to initializing all signed permutations to the identity followed by one RLME update.
+   - **`auto` (default) or `draw`:** select the highest-norm draw $`t_0=\mathop{\mathrm{argmax}}_t\|\widetilde{\boldsymbol{\Lambda}}^{(t)}\|_F`$. Using $`\widetilde{\boldsymbol{\Lambda}}^{(t_0)}`$ as a temporary target, perform one full SP–RLME sweep across all draws and set $`\mathbf M_0`$ to the resulting aligned sample mean (not the single draw $`\widetilde{\boldsymbol{\Lambda}}^{(t_0)}`$ itself). In `auto` mode, a near-zero mean-cancellation diagnostic is also evaluated for verbose logging; this diagnostic is purely informational and never alters the initialization path. If all draws are identically zero, the mean reference is used.
+3. **Step 3 — Alternating SP–RLME sweeps.** For outer iteration $`k=1,\ldots,K`$ (default $`K=\texttt{max\_iter}=100`$):
+   - **3.1 SP step.** Given the current reference $`\mathbf M_{k-1}`$, solve the per-draw problem independently for each $`t=1,\ldots,T`$:
+     ```math
+     \left(s_k^{(t)},\nu_k^{(t)}\right)=\mathop{\mathrm{argmin}}_{s\in\{-1,1\}^q,\,\nu\in\mathcal{T}_q}\mathcal{L}_{s,\nu}^{(t)}(\mathbf M_{k-1}).
+     \qquad\text{(15)}
+     ```
+     Form the aligned draws $`\mathring{\boldsymbol{\Lambda}}_k^{(t)}`$ and evaluate the pre-update objective $`f_k^{\mathrm{pre}}=\sum_{t=1}^{T}\|\mathring{\boldsymbol{\Lambda}}_k^{(t)}-\mathbf M_{k-1}\|_F^2`$.
+   - **3.2 RLME step.** Update the reference matrix to the mean of the newly aligned draws and compute the post-update objective:
+     ```math
+     \mathbf M_k=\frac{1}{T}\sum_{t=1}^{T}\mathring{\boldsymbol{\Lambda}}_k^{(t)},
+     \qquad
+     f_k^{\mathrm{post}}=\sum_{t=1}^{T}\|\mathring{\boldsymbol{\Lambda}}_k^{(t)}-\mathbf M_k\|_F^2.
+     ```
+     Entry wise, $`\lambda_{k,rj}=T^{-1}\sum_{t=1}^T s_{k,j}^{(t)}\widetilde\lambda_{r\nu_{k,j}^{(t)}}^{(t)}`$, which is the unique global minimizer of $`\Psi`$ with respect to the reference for fixed signed permutations.
+   - **3.3 Stopping rules and status codes.** Note that the RLME update is always executed before termination on the final sweep. Let $`\theta=\texttt{threshold}`$ (default $`10^{-6}`$), let $`\varepsilon_{\mathrm{dtype}}`$ denote the working-precision machine epsilon, and define the numerical tolerances
+     ```math
+     \rho=\max\left\{10^{-9},\,10\varepsilon_{\mathrm{dtype}}\sqrt{Tpq}\right\},
+     \qquad
+     \eta=100\varepsilon_{\mathrm{dtype}}^2 Tpq\left(\max_{t,r,j}|\lambda_{rj}^{(t)}|\right)^2,
+     ```
+     where $`\eta`$ uses the scale of the raw input loadings as a heuristic anomaly threshold (rather than a strict rounding-error bound):
+     - **Status 4 (`nonfinite`):** At every sweep, if $`f_k^{\mathrm{pre}}`$, $`f_k^{\mathrm{post}}`$, $`\mathring{\boldsymbol{\Lambda}}_k`$, or $`\mathbf M_k`$ contains nonfinite values, terminate immediately with `status_code = 4` (taking precedence over all rules below). Final returned arrays and requested transforms are checked as well, with affected fields listed in `diagnostics.nonfinite_fields`. (A nonfinite `loss_initial` prior to alignment does not by itself trigger Status 4 if subsequent aligned quantities are finite.) If the internally initialized reference $`\mathbf M_0`$ is nonfinite (for example after a float32 varimax overflow), the implementation returns `status_code = 4` with `n_iter = 0`, zero-filled loss histories, identity signed-permutation indices and `diagnostics["stop_reason"] = "nonfinite_reference"`; requested transforms are composed with that identity signed permutation, and every nonfinite returned field is listed in `diagnostics.nonfinite_fields`.
+     - **Status 3 (`anomaly`):** Otherwise, for $`k\geq2`$, if the pre-update loss increases beyond tolerance, $`f_k^{\mathrm{pre}}-f_{k-1}^{\mathrm{pre}}>\max\{\rho|f_{k-1}^{\mathrm{pre}}|,\eta\}`$, terminate with `status_code = 3`.
+     - **Status 1 (`converged`):** Otherwise, for $`k\geq2`$, if the pre-update improvement satisfies $`f_{k-1}^{\mathrm{pre}}-f_k^{\mathrm{pre}}<\theta Tpq`$, terminate with `status_code = 1`.
+     - **Status 2 (`max_iter`):** If no stopping rule triggers by sweep $`K`$, terminate after sweep $`K`$ with `status_code = 2`.
 
-```math
-\left(s^{(t)},\nu^{(t)}\right)=\mathop{\mathrm{argmin}}_{s,\nu}\left\{\mathcal{L}_{s,\nu}^{(t)}:s\in\{-1,1\}^q,\ \nu\in\mathcal{T}_q\right\}.
-\qquad\text{(15)}
-```
+---
 
-Let $`\mathring{\boldsymbol{\Lambda}}_k^{(t)}`$ denote the resulting aligned draw and define the pre-update loss $`f_k^{\mathrm{pre}}=\sum_{t=1}^{T}\|\mathring{\boldsymbol{\Lambda}}_k^{(t)}-\mathbf M_{k-1}\|_F^2`$.
+The preliminary sweep used during `auto` / `draw` initialization in Step 2 is not counted in `n_iter` and is excluded from the recorded loss histories. Likewise, `converged` and `status_code` reflect only the outer SP–RLME loop; they do not certify optimality of the Step 1 varimax rotations or global optimality of (13).
 
-**3.2 RLME step.** Update the reference and evaluate the post-update loss:
+**Floating-point safeguards.** To prevent overflow and underflow across wide dynamic ranges, residuals, sample means, and Frobenius norms are evaluated using binary exponent (`frexp`/`ldexp`) scaling. In the SP step, each pairwise cost retains its own exponent while preserving exact relative assignment weights; when extreme dynamic ranges occur within a draw, additional assignment solves with a feasible-cost cap are used. While these safeguards eliminate documented overflow and cancellation regressions, they do not make floating-point evaluation identical to exact rational arithmetic, and losses exceeding the output data type's representable range may still overflow or underflow to zero.
 
-```math
-\mathbf M_k=\frac{1}{T}\sum_{t=1}^{T}\mathring{\boldsymbol{\Lambda}}_k^{(t)},
-\qquad
-f_k^{\mathrm{post}}=\sum_{t=1}^{T}\|\mathring{\boldsymbol{\Lambda}}_k^{(t)}-\mathbf M_k\|_F^2.
-```
+**Returned fields and indexing conventions.** The implementation returns a structured result with the following fields:
 
-Writing $`\mathbf M_k=(\lambda_{k,rj})`$, its elementwise form $`\lambda_{k,rj}=T^{-1}\sum_t s_{k,j}^{(t)}\widetilde\lambda_{r\nu_{k,j}^{(t)}}^{(t)}`$ is the exact minimizer with respect to the reference for fixed signed permutations.
-
-**3.3 Stopping and status.** The stopping sweep still performs the RLME update. Let $`\theta=\texttt{threshold}`$, with default $`\theta=10^{-6}`$, and let $`\varepsilon_{\mathrm{dtype}}`$ be the working-precision machine epsilon. Define $`\rho=\max\{10^{-9},10\varepsilon_{\mathrm{dtype}}\sqrt{Tpq}\}`$ and $`\eta=100\varepsilon_{\mathrm{dtype}}^2 Tpq(\max_{t,r,j}|\lambda_{rj}^{(t)}|)^2`$, using the original input loadings for the data scale. The latter is an implementation tolerance for detecting anomalies, not a rigorous rounding-error bound.
-- At every sweep, nonfinite pre- or post-update loss, aligned loadings, or updated reference takes precedence over the stopping rules below: the run returns `status_code = 4`. Final returned arrays and any requested transforms are checked as well; `diagnostics.nonfinite_fields` identifies the affected quantities. A nonfinite initial unaligned loss alone does not preclude a subsequent finite alignment.
-- Otherwise, for $`k\geq2`$, an anomaly is declared if $`f_k^{\mathrm{pre}}-f_{k-1}^{\mathrm{pre}}>\max\{\rho|f_{k-1}^{\mathrm{pre}}|,\eta\}`$; the run stops with `status_code = 3`.
-- Otherwise, for $`k\geq2`$, the run stops with `status_code = 1` (`converged`) when $`f_{k-1}^{\mathrm{pre}}-f_k^{\mathrm{pre}}<\theta Tpq`$. Thus sufficiently small positive improvements also stop the algorithm.
-- If no rule has fired after $`K`$ sweeps, the run ends with `status_code = 2` (`max_iter`).
-
-The representative-initialization sweep in Step 2 is not included in `n_iter` or in the loss histories.
-
-The `converged` flag and `status_code` above describe only the outer SP--RLME stopping rule. They do not certify convergence or optimality of the preceding varimax iterations, or a global minimum of (13).
-
-The floating-point implementation uses binary exponent scaling for residuals, means, and norms. SP retains a separate exponent for each pair cost and preserves the original assignment weights; a wide dynamic range can require additional assignment solves using a feasible-cost bound. These safeguards address the recorded range and cancellation regressions, but do not make arbitrary floating-point inputs equivalent to exact arithmetic. A loss outside the output dtype's range can still overflow or round to zero.
-
-**Result and indexing conventions.** The implementation returns the following fields:
-
-| Field | Meaning |
+| Field | Description |
 |---|---|
-| `aligned_loadings` | final aligned draws $`\mathring{\boldsymbol{\Lambda}}^{(t)}`$ |
-| `mean_loadings` | final reference $`\mathbf M`$ |
-| `signs`, `permutations` | final signs and zero-based assignments; adding one to every permutation entry gives the mathematical index $`\nu_j`$ |
-| `loss_initial` | initial unaligned loss $`\sum_t\Vert \widetilde{\boldsymbol{\Lambda}}^{(t)}-\mathbf M_0\Vert _F^2`$ |
-| `loss_final` | final post-update loss $`f^{\mathrm{post}}`$ |
-| `loss_history`, `loss_history_post` | pre- and post-update losses; their first `n_iter` entries are valid |
-| `n_iter`, `converged`, `status_code` | number of outer sweeps and outer stopping diagnostics |
-| `varimax_n_iter` | per-draw `int32` counts for the preceding varimax stage, or `None` if that stage was skipped; a count of 1000 means the iteration budget was exhausted, not that a maximum was reached |
-| `transforms` | optional total orthogonal transforms $`\mathbf R^{(t)}`$, returned when `return_transforms=True` |
-| `diagnostics`, `metadata` | configuration and caller-supplied MCMC information |
+| `aligned_loadings` | Final aligned loading draws $`\mathring{\boldsymbol{\Lambda}}^{(t)}`$ |
+| `mean_loadings` | Final reference loading matrix $`\mathbf M`$ |
+| `signs`, `permutations` | Final signs $`s_j^{(t)}\in\{-1,1\}`$ and zero-based assignment indices (adding $`1`$ yields the $`1`$-based mathematical index $`\nu_j^{(t)}`$) |
+| `loss_initial` | Initial unaligned loss $`\sum_{t=1}^T\|\widetilde{\boldsymbol{\Lambda}}^{(t)}-\mathbf M_0\|_F^2`$ |
+| `loss_final` | Final post-update loss $`f^{\mathrm{post}}`$ |
+| `loss_history`, `loss_history_post` | Arrays of pre- and post-update losses $`f_k^{\mathrm{pre}}`$ and $`f_k^{\mathrm{post}}`$ (first `n_iter` entries are populated) |
+| `n_iter`, `converged`, `status_code` | Outer SP–RLME sweep count and termination diagnostics |
+| `varimax_n_iter` | Per-draw `int32` iteration counts from Step 1 (`None` if varimax was skipped; a value of `1000` indicates the iteration limit was reached) |
+| `transforms` | Optional total orthogonal transforms $`\mathbf R^{(t)}`$ (included when `return_transforms=True`) |
+| `diagnostics`, `metadata` | Numerical diagnostics and caller-supplied MCMC metadata |
 
-Let $`\mathbf{O}^{(t)}`$ denote the varimax rotation matrix at Step 1 — the matrix denoted $`\boldsymbol{\Phi}`$ in (11). Let $`\mathbf Q^{(t)}`$ be the assignment signed-permutation matrix attached to $`(s^{(t)},\nu^{(t)})`$, so $`(\mathbf Q^{(t)})_{\nu_j^{(t)},j}=s_j^{(t)}`$; equivalently, $`\mathbf Q^{(t)}=(\mathbf P^{(t)})^\top\mathbf S^{(t)}`$ when $`\mathbf P^{(t)}`$ is the column-mapping matrix of Section 3.1. Define the total orthogonal transform $`\mathbf R^{(t)}=\mathbf O^{(t)}\mathbf Q^{(t)}`$. The overall transformations of the factor loadings and of the column-vector latent factors are
+**Co-transforming latent factor scores.** Let $`\mathbf{O}^{(t)}`$ denote the Step 1 varimax rotation matrix for draw $`t`$ (denoted $`\boldsymbol{\Phi}`$ in (11)), and let $`\mathbf Q^{(t)}`$ denote the Step 3 assignment signed-permutation matrix with entries $`(\mathbf Q^{(t)})_{\nu_j^{(t)},j}=s_j^{(t)}`$ (equivalently, $`\mathbf Q^{(t)}=(\mathbf P^{(t)})^\top\mathbf S^{(t)}`$ in terms of the column-mapping matrices of Section 3.1). Define the total orthogonal transform $`\mathbf R^{(t)}=\mathbf O^{(t)}\mathbf Q^{(t)}`$. The aligned loadings and consistently transformed latent factor vectors are given by
 
 ```math
 \mathring{\boldsymbol{\Lambda}}^{(t)}
@@ -397,13 +397,13 @@ Let $`\mathbf{O}^{(t)}`$ denote the varimax rotation matrix at Step 1 — the ma
 \mathring{F}_i^{(t)}
 =(\mathbf R^{(t)})^\top F_i^{(t)}
 =(\mathbf Q^{(t)})^\top(\mathbf O^{(t)})^\top F_i^{(t)},
-\quad i=1,\ldots,n,
+\quad i=1,\ldots,n;\ t=1,\ldots,T.
 \qquad\text{(17)}
 ```
 
-for MCMC draw $`t=1,\ldots,T`$. For row-stored scores $`f_i^{(t)}=(F_i^{(t)})^\top`$, the equivalent rule is $`\mathring f_i^{(t)}=f_i^{(t)}\mathbf R^{(t)}`$. These conventions preserve the fitted common component: $`\mathring{\boldsymbol{\Lambda}}^{(t)}\mathring F_i^{(t)}=\boldsymbol{\Lambda}^{(t)}F_i^{(t)}`$. The required matrices are derived from the loadings alone and are available when `return_transforms=True`.
+When factor scores are stored as row vectors $`f_i^{(t)}=(F_i^{(t)})^\top`$, Equation (17) becomes $`\mathring f_i^{(t)}=f_i^{(t)}\mathbf R^{(t)}`$. These transformations preserve the common linear predictor identically: $`\mathring{\boldsymbol{\Lambda}}^{(t)}\mathring F_i^{(t)}=\boldsymbol{\Lambda}^{(t)}F_i^{(t)}`$. Notice that $`\mathbf R^{(t)}`$ depends only on the loading draws and is returned when `return_transforms=True`.
 
-The SP--RLME stage (Steps 2--3) can also serve as a stand-alone algorithm, without the varimax rotation in Step 1; an application is the comparison of multiple MCMC chains. Strategies for minimizing expression (15) are discussed in Section 4.2.
+Finally, the SP–RLME stage (Steps 2–3) can be run as a stand-alone alignment procedure without Step 1 varimax rotation — for example, to align loadings across multiple MCMC chains. Computational strategies for solving the discrete SP subproblem (15) are detailed in Section 4.2.
 
 ---
 
@@ -411,11 +411,11 @@ The SP--RLME stage (Steps 2--3) can also serve as a stand-alone algorithm, witho
 
 ### 4.1 Iterative optimization of the varimax criterion
 
-A single-start matrix-form varimax iteration is used independently for each MCMC draw to seek a maximizer of (11). This approach updates all $`q`$ factors simultaneously rather than successively rotating pairs of factors. The implementation uses the unnormalized loadings, corresponding to `normalize = FALSE`: no row (Kaiser) normalization is applied. Denote the objective function in (11) by $`\mathcal V(\mathbf O)`$, where $`\mathbf O\in\mathbb R^{q\times q}`$ and $`\mathbf O^\top\mathbf O=\mathbf I_q`$.
+To seek a maximizer of the varimax objective (11), each MCMC draw is processed independently by a single-start matrix-form varimax iteration that updates all $`q`$ factors simultaneously. The implementation operates on unnormalized loadings (`normalize = FALSE`), without Kaiser row normalization. Let $`\mathcal V(\mathbf O)`$ denote the objective function in (11) for $`\mathbf O\in\mathbb R^{q\times q}`$ satisfying $`\mathbf O^\top\mathbf O=\mathbf I_q`$.
 
 #### Matrix gradient and orthogonal update
 
-Let $`\mathbf O_k`$ be the orthogonal rotation at iteration $`k`$, starting from $`\mathbf O_0=\mathbf I_q`$. Define the current rotated matrix, the column sums of its squared elements, and the matrix $`\mathbf B_k`$ by
+Starting from $`\mathbf O_0=\mathbf I_q`$, let $`\mathbf O_k`$ denote the orthogonal rotation at iteration $`k`$. Define the rotated loading matrix $`\mathbf Z_k`$, the column sums of squared loadings $`c_{kj}`$, and the Euclidean matrix gradient $`\mathbf B_k`$ by
 
 ```math
 \begin{aligned}
@@ -430,9 +430,9 @@ c_{kj}&=\sum_{r=1}^{p}z_{rkj}^2,\qquad
 \qquad\text{(18)}
 ```
 
-where $`\mathbf Z_k^{\odot 3}`$ denotes the elementwise cube of $`\mathbf Z_k`$. With the factor $`1/4`$ included in (11), $`\mathbf B_k`$ is exactly the Euclidean matrix gradient of the varimax criterion at the current rotation. If the objective is multiplied by four, the gradient is $`4\mathbf B_k`$; this positive rescaling does not change the orthogonal update in (19).
+where $`\mathbf Z_k^{\odot 3}`$ denotes the elementwise cube of $`\mathbf Z_k`$. Because of the prefactor $`1/4`$ in (11), $`\mathbf B_k`$ is the exact Euclidean gradient of $`\mathcal V`$ at $`\mathbf O_k`$ (omitting the $`1/4`$ simply scales the gradient by $`4`$, which leaves the polar update (19) unchanged).
 
-The next rotation is obtained by maximizing the associated linear functional over the set of orthogonal matrices:
+The next iterate $`\mathbf O_{k+1}`$ is obtained by maximizing the first-order linear approximation of $`\mathcal V`$ over the orthogonal group:
 
 ```math
 \mathbf O_{k+1}
@@ -443,7 +443,7 @@ The next rotation is obtained by maximizing the associated linear functional ove
 \qquad\text{(19)}
 ```
 
-This problem has an explicit singular-value solution. If
+From the singular value decomposition $`\mathbf B_k=\mathbf U_k\mathbf D_k\mathbf V_k^\top`$, where $`\mathbf D_k`$ is diagonal with nonnegative singular values, von Neumann's trace inequality yields $`\mathop{\mathrm{tr}}(\mathbf B_k^\top\mathbf O)\le\mathop{\mathrm{tr}}(\mathbf D_k)`$ for all orthogonal $`\mathbf O`$, with equality at
 
 ```math
 \mathbf B_k=\mathbf U_k\mathbf D_k\mathbf V_k^\top,
@@ -451,15 +451,15 @@ This problem has an explicit singular-value solution. If
 \mathbf O_{k+1}=\mathbf U_k\mathbf V_k^\top,
 \qquad
 d_k:=\mathop{\mathrm{tr}}\nolimits(\mathbf O_{k+1}^\top\mathbf B_k)
-=\mathop{\mathrm{tr}}\nolimits(\mathbf D_k),
+=\mathop{\mathrm{tr}}\nolimits(\mathbf D_k).
 \qquad\text{(20)}
 ```
 
-where $`\mathbf D_k`$ contains the singular values of $`\mathbf B_k`$. Indeed, von Neumann's trace inequality gives $`\langle\mathbf B_k,\mathbf O\rangle_F\leq\mathop{\mathrm{tr}}\nolimits(\mathbf D_k)`$ for every orthogonal $`\mathbf O`$, with equality at $`\mathbf O=\mathbf U_k\mathbf V_k^\top`$. The matrix $`\mathbf U_k\mathbf V_k^\top`$ replaces the current rotation; it is not additionally multiplied by $`\mathbf O_k`$.
+Note that $`\mathbf O_{k+1}=\mathbf U_k\mathbf V_k^\top`$ directly *replaces* the total rotation matrix rather than multiplying $`\mathbf O_k`$.
 
 #### Polar decomposition and the QDWH alternative
 
-The update in (20) can equivalently be expressed through the polar decomposition
+Equivalently, the update in (20) is the orthogonal factor of the polar decomposition of $`\mathbf B_k`$:
 
 ```math
 \mathbf B_k=\mathbf W_k\mathbf H_k,
@@ -470,18 +470,16 @@ d_k=\langle\mathbf W_k,\mathbf B_k\rangle_F=\mathop{\mathrm{tr}}\nolimits(\mathb
 \qquad\text{(21)}
 ```
 
-where $`\mathbf W_k`$ is orthogonal and $`\mathbf H_k`$ is symmetric positive semidefinite. For nonsingular $`\mathbf B_k`$, the orthogonal polar factor can also be written as $`\mathbf W_k=\mathbf B_k(\mathbf B_k^\top\mathbf B_k)^{-1/2}`$.
+where $`\mathbf W_k`$ is orthogonal and $`\mathbf H_k`$ is symmetric positive semidefinite (for nonsingular $`\mathbf B_k`$, $`\mathbf W_k=\mathbf B_k(\mathbf B_k^\top\mathbf B_k)^{-1/2}`$). Two numerical backends are available to compute $`\mathbf W_k`$:
 
-Two numerical routes are used to obtain $`\mathbf W_k`$:
+1. **SVD route (`polar="svd"`):** compute the full SVD of $`\mathbf B_k`$ and set $`\mathbf W_k=\mathbf U_k\mathbf V_k^\top`$. This reproduces the reference iteration of R's `stats::varimax`.
+2. **QDWH route (`polar="qdwh"`, default):** compute the orthogonal polar factor directly via the QR-based dynamically weighted Halley (QDWH) iteration, avoiding an explicit SVD, and evaluate $`d_k=\langle\mathbf W_k,\mathbf B_k\rangle_F`$.
 
-1. **SVD route.** Compute the singular value decomposition of $`\mathbf B_k`$ and set $`\mathbf W_k=\mathbf U_k\mathbf V_k^\top`$. This is the R-faithful reference iteration corresponding to R's `stats::varimax`, selected explicitly with `polar="svd"`.
-2. **QDWH route (current default, `polar="qdwh"`).** Compute the same orthogonal polar factor using the QR-based dynamically weighted Halley (QDWH) iteration, without explicitly forming an SVD. The stopping quantity is evaluated as $`d_k=\langle\mathbf W_k,\mathbf B_k\rangle_F`$, which equals the sum of the singular values when $`\mathbf W_k`$ is the exact polar factor.
-
-For an exactly zero or non-finite $`\mathbf B_k`$, the QDWH implementation keeps the current rotation for that update. It also checks convergence of the inner QDWH iteration, finiteness, and orthogonality of the returned rotation. The default orthogonality tolerance is $`10^{-3}`$ for float32 and $`10^{-9}`$ for float64. A draw failing these checks is recomputed using the SVD route; accepted draws are not recomputed. These checks concern the numerical polar updates, not optimality of the varimax objective.
+If $`\mathbf B_k`$ is identically zero or nonfinite, the QDWH backend leaves the current rotation unchanged for that step. It also verifies convergence of the inner QDWH loop, finiteness, and orthogonality of the resulting factor (with default orthogonality tolerance $`10^{-3}`$ in `float32` and $`10^{-9}`$ in `float64`). Any draw failing these numerical checks is automatically recomputed via the SVD route, whereas accepted draws are kept as-is. These checks validate the polar decomposition step, not optimality of the varimax objective.
 
 #### Scale invariance and numerical scaling
 
-The varimax maximizer is invariant under a positive uniform rescaling of the loadings. For each draw, the iteration reduces the risk of overflow or underflow in the fourth-order intermediates in (18) by using
+Because the varimax criterion is homogeneous of degree four, its maximizers are invariant under positive scalar rescaling of $`\boldsymbol{\Lambda}`$. To prevent overflow or underflow in the cubic and quartic intermediates of (18), each draw is rescaled prior to iteration:
 
 ```math
 \boldsymbol{\Lambda}_{\alpha}=\frac{\boldsymbol{\Lambda}}{\alpha},
@@ -494,44 +492,44 @@ The varimax maximizer is invariant under a positive uniform rescaling of the loa
 \qquad\text{(22)}
 ```
 
-where $`\mathbf B_{\alpha,k}`$ is constructed from $`\boldsymbol{\Lambda}_{\alpha}`$ and $`\mathop{\mathrm{polar}}\nolimits(\cdot)`$ denotes the orthogonal polar factor. For nonsingular $`\mathbf B_k`$, the unique orthogonal polar factor is unchanged. For singular matrices, positive scaling preserves the set of admissible polar factors, and any fixed corresponding SVD/polar branch transforms in the same way. Consequently, scaling changes the singular values but not the orthogonal update or the maximizing rotation. The final rotated loadings are formed on the original scale as $`\boldsymbol{\Lambda}\mathbf O_k`$.
+where $`\mathbf B_{\alpha,k}`$ is computed from $`\boldsymbol{\Lambda}_{\alpha}`$. Positive scaling leaves the unique orthogonal polar factor invariant when $`\mathbf B_k`$ is nonsingular, and preserves the set of polar factors (as well as any fixed SVD/polar branch) when $`\mathbf B_k`$ is singular. Once the iteration terminates, the final rotated loadings are formed on the original scale as $`\boldsymbol{\Lambda}\mathbf O_{\mathrm{final}}`$.
 
-For each draw with $`a=\max_{r,j}|\lambda_{rj}|>0`$, the scale is chosen as a power of two based on $`a`$. Writing $`e=\lfloor\log_2a\rfloor`$, $`e_1=\lfloor e/2\rfloor`$ and $`e_2=e-e_1`$, the implementation uses $`\alpha_1=2^{e_1}`$ and $`\alpha_2=2^{e_2}`$ and divides successively by these two factors. For normal binary floating-point values whose exponents remain within the representable range, multiplication or division by a power of two introduces no additional rounding. Splitting the exponent protects the scaling itself at extreme magnitudes, although subnormal and underflow effects cannot be eliminated universally. For $`a=0`$, the implementation uses $`\alpha_1=\alpha_2=1`$. This numerical scaling is distinct from Kaiser normalization.
+For any draw with $`a=\max_{r,j}|\lambda_{rj}|>0`$, the scale factor is chosen as an exact power of two: setting $`e=\lfloor\log_2 a\rfloor`$, $`e_1=\lfloor e/2\rfloor`$, and $`e_2=e-e_1`$, the loading matrix is divided successively by $`\alpha_1=2^{e_1}`$ and $`\alpha_2=2^{e_2}`$ (for $`a=0`$, $`\alpha_1=\alpha_2=1`$). In binary floating-point arithmetic, scaling normal numbers by powers of two within the representable exponent range is exact and introduces no rounding error; splitting the exponent into two factors prevents overflow of the scale factor itself at extreme magnitudes (though subnormal rounding cannot be avoided universally). This scalar preconditioning is purely numerical and is unrelated to Kaiser row normalization.
 
 #### Stopping rule and output
 
-The scalar $`d_k`$ in (20)–(21) is the sum of the singular values of $`\mathbf B_k`$, not the varimax objective itself. Successive values are used to detect relative stagnation. After the current update, the iteration stops when
+The scalar $`d_k=\mathop{\mathrm{tr}}(\mathbf D_k)`$ in (20)–(21) is the nuclear norm of the gradient $`\mathbf B_k`$ rather than the varimax objective $`\mathcal V(\mathbf O_k)`$. Following `stats::varimax`, the iteration monitors relative stagnation of $`d_k`$ and terminates as soon as
 
 ```math
-d_k\lt d_{k-1}(1+\varepsilon),
+d_k < d_{k-1}(1+\varepsilon),
 \qquad \varepsilon=10^{-5},
 \qquad\text{(23)}
 ```
 
-or when 1000 updates have been performed. For nonzero draws with $`q\geq2`$, the initial zero convention ensures that the first update is executed. If $`\mathbf O_{\mathrm{final}}`$ is the final rotation, the returned loadings and rotation are $`\widetilde{\boldsymbol{\Lambda}}=\boldsymbol{\Lambda}\mathbf O_{\mathrm{final}}`$ and $`\mathbf O_{\mathrm{final}}`$, respectively. For $`q<2`$ or an exactly zero draw, no iteration is needed and the input is returned with an identity rotation and count zero.
+or upon reaching `1000` updates. Initializing $`d_0=0`$ guarantees that at least one update is performed for every nonzero draw with $`q\geq2`$. Upon termination with $`\mathbf O_{\mathrm{final}}`$, the routine returns $`\widetilde{\boldsymbol{\Lambda}}=\boldsymbol{\Lambda}\mathbf O_{\mathrm{final}}`$ and $`\mathbf O_{\mathrm{final}}`$. For $`q<2`$ or an identically zero draw, the routine returns the input unchanged with $`\mathbf O_{\mathrm{final}}=\mathbf I_q`$ and an iteration count of zero.
 
-For $`q\geq2`$, this stopping rule certifies neither stationarity nor a local or global maximum of (11). The iteration may stagnate at a stationary point that is not a local maximum, or reach the update limit. In particular, $`\varepsilon=10^{-5}`$ controls the comparison of successive $`d_k`$ values; it does not bound the error in the varimax objective or the distance to a maximizing rotation. Even an exact global maximizer need not be unique up to signed permutations. Thus the sufficient conditions stated in Section 3.2.1 are not guaranteed by the iteration.
+For $`q\geq2`$, stopping rule (23) does not certify a local or global maximum — or even stationarity — of (11): the sequence may stagnate near a saddle point or exhaust the 1000-step budget, and $`\varepsilon=10^{-5}`$ bounds neither the objective gap nor the rotation error. Moreover, even exact global maximizers of (11) need not be unique up to signed permutations. Consequently, the sufficient conditions noted in Section 3.2.1 are not guaranteed by Step 1.
 
 ### 4.2 Solving the sign-permutation problem
 
-The SP step in (15) is a discrete optimization problem over $`2^q q!`$ signed permutations. For a fixed reference matrix, the total objective in (13) separates across MCMC draws, so each draw can be aligned independently. Whether it follows the varimax step or is used as a stand-alone algorithm, the key computational device is to eliminate the signs analytically and then solve one linear assignment problem per draw. The default `sp_path="elim"` uses this elimination route; `sp_path="enum"` is retained for legacy compatibility and validation.
+For a fixed reference matrix, the global objective $`\Psi`$ in (13) is additively separable across draws, reducing the SP step (15) to $`T`$ independent discrete minimizations over $`2^q q!`$ signed permutations. The key computational insight is that optimal column signs can be eliminated analytically in closed form, reducing each draw's minimization to a single $`q\times q`$ linear assignment problem. This analytical elimination route (`sp_path="elim"`) is the default; full sign enumeration (`sp_path="enum"`) is retained for validation and legacy compatibility.
 
-To simplify the notation, suppress the draw index $`t`$ and write $`\mathbf A=(a_{rj})`$ for the loadings being aligned and $`\mathbf M=(m_{rj})`$ for the current reference $`\boldsymbol{\Lambda}^{\star}`$. Under the assignment convention of Section 3.2.2, reference column $`j`$ is matched to column $`\nu_j`$ of $`\mathbf A`$.
+Suppressing the draw index $`t`$, write $`\mathbf A=(a_{rj})\in\mathbb{R}^{p\times q}`$ for the loading matrix being aligned and $`\mathbf M=(m_{rj})\in\mathbb{R}^{p\times q}`$ for the current reference matrix $`\boldsymbol{\Lambda}^{\star}`$. Under the assignment convention of Section 3.2.2, reference column $`j`$ is matched to draw column $`\nu_j`$.
 
 #### Analytical elimination of the signs
 
-For a proposed match between reference column $`j`$ and draw column $`k`$, evaluate the two possible signed squared residuals directly:
+For any candidate pairing of reference column $`j`$ with draw column $`k`$, the squared Euclidean residuals under the two possible signs $`s_j=+1`$ and $`s_j=-1`$ are
 
 ```math
 c_{jk}^{(+)}
 =\sum_{r=1}^{p}(a_{rk}-m_{rj})^2,
 \qquad
 c_{jk}^{(-)}
-=\sum_{r=1}^{p}(a_{rk}+m_{rj})^2,
+=\sum_{r=1}^{p}(a_{rk}+m_{rj})^2.
 \qquad\text{(24)}
 ```
 
-where $`c_{jk}^{(+)}`$ corresponds to $`s_j=+1`$ and $`c_{jk}^{(-)}`$ to $`s_j=-1`$. The optimal sign and minimum residual for this particular match are
+The minimum pairwise cost and the optimal sign for pair $`(j,k)`$ are therefore known immediately:
 
 ```math
 c_{jk}=\min\left\{c_{jk}^{(+)},c_{jk}^{(-)}\right\},
@@ -544,9 +542,9 @@ c_{jk}=\min\left\{c_{jk}^{(+)},c_{jk}^{(-)}\right\},
 \qquad\text{(25)}
 ```
 
-Thus, a zero residual difference is resolved in favour of the positive sign, and the chosen sign is always in $`\{-1,+1\}`$.
+Ties ($`c_{jk}^{(+)}=c_{jk}^{(-)}`$) are broken deterministically in favor of $`\eta_{jk}=+1`$.
 
-For a fixed permutation $`\nu`$, the signs affect different columns independently. Consequently, the sign minimization can be interchanged with the permutation minimization without approximation:
+Because the choice of sign $`s_j`$ for column $`j`$ depends only on the matched pair $`(j,\nu_j)`$ and does not interact with other columns, minimization over $`s\in\{-1,1\}^q`$ commutes with minimization over $`\nu\in\mathcal T_q`$:
 
 ```math
 \boxed{
@@ -559,11 +557,11 @@ For a fixed permutation $`\nu`$, the signs affect different columns independentl
 \qquad\text{(26)}
 ```
 
-The joint discrete problem therefore reduces to a minimization over permutations using the precomputed pairwise costs $`c_{jk}`$.
+This reduces the $`2^q q!`$-state joint search to a $`q!`$-state permutation search over the precomputed $`q\times q`$ cost matrix $`\mathbf C=(c_{jk})`$.
 
 #### Reduction to a linear assignment problem
 
-Equation (26) is a square linear assignment problem on the $`q\times q`$ cost matrix $`\mathbf C=(c_{jk})`$. Its rows index reference columns and its columns index draw columns; a feasible assignment matches every reference column to exactly one draw column and vice versa. Once the assignment has been solved, the signs, aligned loadings, and per-draw loss are recovered as
+Equation (26) is a standard square linear assignment problem on the cost matrix $`\mathbf C=(c_{jk})`$, whose rows index reference columns and whose columns index draw columns. Given an optimal assignment $`\nu^\star`$, the optimal signs, aligned loadings, and per-draw loss are recovered directly via
 
 ```math
 \nu^\star=\mathop{\mathrm{argmin}}_{\nu\in\mathcal T_q}
@@ -577,19 +575,19 @@ s_j^\star=\eta_{j,\nu_j^\star},
 \qquad\text{(27)}
 ```
 
-Hence only one assignment problem is required for each draw and each outer SP sweep. The final operation in (27) is precisely a column gather followed by column-wise sign multiplication.
+Thus, at ordinary dynamic ranges each draw requires only a single assignment solve per outer SP sweep, followed by a column gather and sign multiplication. When extreme dynamic ranges occur within a draw, the safeguard described in the Floating-point safeguards note may apply a small number of additional assignment solves with a feasible-cost cap; this does not change the objective or the tie rules.
 
-Three assignment solvers are available:
+Three assignment backends are supported:
 
-1. **Exhaustive permutation search.** All $`q!`$ permutations are evaluated. This is used for small $`q`$ and gives the lexicographically smallest optimal permutation under the exhaustive tie rule.
-2. **Hungarian algorithm.** The Optax Hungarian solver provides a polynomial-time assignment method with typical $`O(q^3)`$ complexity and is the default production route for larger $`q`$.
-3. **SciPy assignment solver.** `scipy.optimize.linear_sum_assignment` provides an independent host-side backend and validation route, selected explicitly with `assignment_backend="scipy"`; it is not an automatic fallback from Optax.
+1. **Exhaustive permutation search:** evaluates all $`q!`$ permutations directly and returns the lexicographically first minimizer under ties. Used by default for small $`q`$ ($`q\leq 7`$).
+2. **Hungarian algorithm (Optax):** polynomial-time solver with $`O(q^3)`$ complexity, used by default for $`q>7`$.
+3. **SciPy solver (`assignment_backend="scipy"`):** host-side `scipy.optimize.linear_sum_assignment` backend available for validation (selected explicitly, not as an automatic fallback).
 
-Under the default dispatch rule, exhaustive search is used for $`q\leq7`$ and the Optax Hungarian solver for $`q>7`$; this threshold is configurable. Constructing the pairwise costs requires $`O(pq^2)`$ operations per draw. Batch chunking only changes how these independent problems are executed and does not alter the optimization problem.
+The dispatch threshold between exhaustive search and the Hungarian algorithm (default $`q=7`$) is configurable. Forming the $`q\times q`$ cost matrix requires $`O(pq^2)`$ operations per draw, and batch chunking affects only memory layout and execution parallelism without altering the optimization results.
 
 #### Equivalent inner-product formulation and direct residual evaluation
 
-The sign elimination can also be understood algebraically through the pairwise inner products
+Algebraically, expanding the squared residuals in (24) in terms of the column inner products $`g_{jk}`$ gives
 
 ```math
 g_{jk}=\sum_{r=1}^{p}m_{rj}a_{rk},
@@ -600,7 +598,7 @@ c_{jk}=\sum_{r=1}^{p}a_{rk}^2+\sum_{r=1}^{p}m_{rj}^2-2|g_{jk}|.
 \qquad\text{(28)}
 ```
 
-Thus $`\eta_{jk}`$ is the sign of $`g_{jk}`$, with the positive sign chosen when $`g_{jk}=0`$. Moreover, every permutation uses every reference column and every draw column exactly once, so the two squared-norm sums are constant across feasible assignments. Therefore,
+Hence $`\eta_{jk}=\mathrm{sign}(g_{jk})`$ (with $`\eta_{jk}=+1`$ when $`g_{jk}=0`$). Moreover, because any bijection $`\nu\in\mathcal T_q`$ visits every column of $`\mathbf A`$ and every column of $`\mathbf M`$ once, the squared column norms sum to constants across all permutations:
 
 ```math
 \min_{\nu\in\mathcal T_q}\sum_{j=1}^{q}c_{j,\nu_j}
@@ -610,11 +608,11 @@ Thus $`\eta_{jk}`$ is the sign of $`g_{jk}`$, with the positive sign chosen when
 \qquad\text{(29)}
 ```
 
-Although (29) is algebraically equivalent, the implementation deliberately constructs the assignment costs from the direct squared differences in (24), rather than from expanded squared norms or $`-|g_{jk}|`$. This avoids the catastrophic cancellation that can occur when subtracting nearly equal large quantities in the expanded formulation; it does not change the underlying discrete optimization problem.
+Although maximizing $`\sum_j|g_{j,\nu_j}|`$ in (29) is algebraically equivalent to minimizing $`\sum_j c_{j,\nu_j}`$, the implementation intentionally evaluates $`c_{jk}^{(+)}`$ and $`c_{jk}^{(-)}`$ directly from the pairwise differences $`(a_{rk}\mp m_{rj})^2`$ in (24) rather than from the expanded form (28). Direct residual evaluation avoids catastrophic floating-point cancellation when $`\|\mathbf A\|_F^2+\|\mathbf M\|_F^2`$ and $`2\sum_j|g_{j,\nu_j}|`$ are large and nearly equal.
 
 #### Exhaustive sign enumeration as a validation route
 
-For validation and reproduction of the R enumeration order, an alternative route enumerates all $`2^q`$ sign vectors. For any fixed $`s\in\{-1,+1\}^q`$, define
+To validate the elimination solver and reproduce the exact tie-breaking order of the reference R implementation, `sp_path="enum"` enumerates all $`2^q`$ sign vectors explicitly. For each fixed $`s\in\{-1,+1\}^q`$, define the sign-conditioned costs and assignment value
 
 ```math
 c_{jk}^{(s)}=\sum_{r=1}^{p}(a_{rk}-s_jm_{rj})^2,
@@ -626,12 +624,11 @@ c_{jk}^{(s)}=\sum_{r=1}^{p}(a_{rk}-s_jm_{rj})^2,
 \qquad\text{(30)}
 ```
 
-Each minimization over $`\nu`$ is again a linear assignment problem. This enumeration route therefore solves $`2^q`$ assignment problems per draw, compared with only one in the elimination route. Strict loss comparisons retain the first minimum in the prescribed sign-enumeration order. The two routes solve the same fixed-reference optimization problem, although their selected signs or permutations may differ under ties.
+This route solves $`2^q`$ linear assignment problems per draw (versus one in the elimination route) and retains the first sign vector that achieves the minimum under strict comparison (`<`). Both routes solve the exact same fixed-reference SP problem (15) and achieve the same minimum loss $`\mathcal L^\star`$, differing at most in tie-breaking among equally optimal signed permutations.
 
-Both routes are exact for the SP subproblem with $`\mathbf M`$ held fixed. The subsequent RLME update replaces $`\mathbf M`$ by the mean of the aligned draws and the two steps are repeated. Accordingly, exactness of each SP solve does not imply that the overall alternating RSP algorithm attains a global optimum over the reference and all signed permutations.
+Finally, while both routes solve each SP subproblem globally for a fixed reference $`\mathbf M`$, the outer RSP loop alternates SP steps with RLME mean updates. Exactness of the inner SP solver therefore does not guarantee that the outer alternating algorithm attains a global minimum of the joint objective (13).
 
 ## References
 
 1. Papastamoulis, P., & Ntzoufras, I. (2022). On the identifiability of Bayesian factor analytic models. *Statistics and Computing*, **32**(2), 23.
-
 2. Rey-Sáez, R., & Revuelta, J. (2026). An Efficient Rotation-Sign-Permutation Algorithm to Solve Rotational Indeterminacy in Bayesian Exploratory Factor Analysis. *Bayesian Analysis*, **1**(1), 1–23.
