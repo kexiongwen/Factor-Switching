@@ -8,9 +8,12 @@ d = <W, B>_F = tr(WᵀB), equal to the sum of singular values for a polar factor
 The `polar="svd"` path obtains this factor directly from an SVD.
 
 QDWH results must have converged inner solves and finite orthogonality error
-||WᵀW - I||_F <= orth_tol, computed at highest matmul precision. Failed draws
-are recomputed with SVD outside the jitted batch; accepted draws retain their
-QDWH results.
+||WᵀW - I||_F <= orth_tol. All varimax matrix products (both the SVD and the
+QDWH iteration paths, and the orthogonality check) are pinned to JAX's
+`highest` matmul precision, so a float32 GPU run is not limited by the
+backend's default float32 matmul precision (e.g. TF32); CPU results are
+unchanged. Failed draws are recomputed with SVD outside the jitted batch;
+accepted draws retain their QDWH results.
 
 `return_n_iter=True` also returns per-draw iteration counts. The batched while
 loop runs until its slowest active draw stops, while completed draws retain
@@ -18,33 +21,43 @@ their states; the counts describe individual draws, not batch execution cost.
 """
 from __future__ import annotations
 
+import numbers
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .._numeric import power_of_two
+from .._numeric import (any_nonzero, binary_exponent, max_abs, scale_pow2)
 
 
 def _staged_scale(x: jax.Array):
-    """Return loadings scaled in two power-of-two stages for each draw.
+    """Return loadings scaled in two power-of-two stages, plus the exponent.
 
     Uniform positive scaling preserves the varimax maximizers in exact
     arithmetic, while the intermediate B grows with the fourth power of
-    input magnitude. Splitting the exponent keeps each scale factor within
-    the dtype range without forming a potentially underflowing reciprocal.
-    The factors are constructed from exponent bits (power_of_two), because
-    device exp2 is inexact beyond its small exactly-representable window.
-    Floating-point rounding can change the iteration path, particularly for
-    degenerate or non-unique optima.
+    input magnitude. The binary exponent e = floor(log2(max|x|)) is read
+    exactly from the IEEE exponent bits (binary_exponent); a floating log2
+    is not used because it can round down-and-out by one for exact powers of
+    two and is undefined for subnormals. The scale is applied as two
+    exponent-bit shifts (scale_pow2), e = e1 + e2, rather than as floating
+    divisions: a division would flush a subnormal operand to zero on
+    flush-to-zero backends before the power-of-two factor could compensate.
+    The split keeps each shift small and mirrors the specification's
+    two-factor construction.
+
+    Returns (scaled loadings, e) with e = 0 when the draw is zero or
+    non-finite. Floating-point rounding can change the iteration path,
+    particularly for degenerate or non-unique optima.
     """
-    maxabs = jnp.max(jnp.abs(x))
-    e = jnp.floor(jnp.log2(maxabs))
-    ok = jnp.isfinite(e) & (maxabs > 0)
-    e1 = jnp.where(ok, jnp.floor(e / 2), 0.0)
-    e2 = jnp.where(ok, e - e1, 0.0)
-    s1 = power_of_two(e1.astype(jnp.int32), x.dtype)
-    s2 = power_of_two(e2.astype(jnp.int32), x.dtype)
-    return (x / s1) / s2
+    maxabs = max_abs(x)
+    e = binary_exponent(maxabs)
+    finite = jnp.all(jnp.isfinite(x))
+    ok = finite & any_nonzero(x) & (e < jnp.finfo(x.dtype).maxexp)
+    e = jnp.where(ok, e, 0).astype(jnp.int32)
+    e1 = jnp.floor_divide(e, 2)
+    e2 = e - e1
+    xs = scale_pow2(scale_pow2(x, -e1), -e2)
+    return xs, e
 
 
 def _varimax_body(xs, p, tt):
@@ -63,8 +76,10 @@ def _varimax_single(x: jax.Array, eps: float, max_iter: int):
     its d sequence stays zero, so the strict stopping rule would not fire.
     """
     p, q = x.shape
-    xs = _staged_scale(x)
-    active = jnp.max(jnp.abs(x)) > 0
+    xs, e = _staged_scale(x)
+    # Zero and non-finite draws keep the identity rotation without iterating
+    # (any_nonzero inspects magnitude bits, so subnormal draws are active).
+    active = jnp.all(jnp.isfinite(x)) & any_nonzero(x)
 
     def cond(state):
         _tt, d, dpast, i = state
@@ -81,7 +96,10 @@ def _varimax_single(x: jax.Array, eps: float, max_iter: int):
 
     init = (jnp.eye(q, dtype=x.dtype), jnp.zeros((), x.dtype), jnp.zeros((), x.dtype), 0)
     tt, _d, _dpast, i = jax.lax.while_loop(cond, body, init)
-    return x @ tt, tt, i
+    # Restore the original scale from the exact power-of-two prefix. This is
+    # bitwise equivalent to x @ tt for ordinary ranges and keeps subnormal
+    # outputs representable instead of flushing the matmul operands to zero.
+    return scale_pow2(xs @ tt, e), tt, i
 
 
 def _varimax_single_qdwh(x: jax.Array, eps: float, max_iter: int):
@@ -98,8 +116,9 @@ def _varimax_single_qdwh(x: jax.Array, eps: float, max_iter: int):
     from jax.lax.linalg import qdwh
 
     p, q = x.shape
-    xs = _staged_scale(x)
-    active = jnp.max(jnp.abs(x)) > 0  # zero draw: keep I without iterating
+    xs, e = _staged_scale(x)
+    # Zero and non-finite draws keep I without iterating (subnormal-safe).
+    active = jnp.all(jnp.isfinite(x)) & any_nonzero(x)
 
     def cond(state):
         _tt, d, dpast, i, _okc = state
@@ -124,7 +143,7 @@ def _varimax_single_qdwh(x: jax.Array, eps: float, max_iter: int):
         jnp.asarray(True),
     )
     tt, _d, _dpast, i, okc = jax.lax.while_loop(cond, body, init)
-    return x @ tt, tt, i, okc
+    return scale_pow2(xs @ tt, e), tt, i, okc
 
 
 def _default_orth_tol(dtype):
@@ -133,14 +152,20 @@ def _default_orth_tol(dtype):
 
 def _varimax_impl(loadings, eps, max_iter, return_n_iter):
     t, p, q = loadings.shape
-    if q < 2:
+    if q < 2 or p < 2:
+        # q < 2: identity rotation by spec 4.1. p < 2: for a single row the
+        # varimax gradient B in (18) is identically zero (colSums(z^2)/p = z^2
+        # for p = 1), so every update keeps the identity while d = 0 never
+        # triggers the strict stopping rule: without this shortcut each draw
+        # would burn the full max_iter (1000) budget.
         eye = jnp.broadcast_to(jnp.eye(q, dtype=loadings.dtype), (t, q, q))
         if return_n_iter:
             return loadings, eye, jnp.zeros((t,), dtype=jnp.int32)
         return loadings, eye
-    rotated, rotmats, n_iters = jax.vmap(lambda x: _varimax_single(x, eps, max_iter))(
-        loadings
-    )
+    with jax.default_matmul_precision("highest"):
+        rotated, rotmats, n_iters = jax.vmap(
+            lambda x: _varimax_single(x, eps, max_iter)
+        )(loadings)
     if return_n_iter:
         return rotated, rotmats, n_iters.astype(jnp.int32)
     return rotated, rotmats
@@ -154,14 +179,18 @@ def _varimax_qdwh_impl(loadings, eps, max_iter, orth_tol):
     matmul precision), or any of its inner QDWH solves did not converge.
     Inner convergence alone is insufficient: a zero B can yield W=0,
     which is not orthogonal.
+
+    q < 2 or p < 2 returns the input with an identity rotation and zero
+    counts (same shortcut as the SVD path; p = 1 makes B identically zero).
     """
     t, p, q = loadings.shape
-    if q < 2:  # same identity shortcut as the SVD path
+    if q < 2 or p < 2:  # same identity shortcut as the SVD path
         eye = jnp.broadcast_to(jnp.eye(q, dtype=loadings.dtype), (t, q, q))
         return loadings, eye, jnp.zeros((t,), dtype=jnp.int32), jnp.zeros((t,), bool)
-    rotated, rotmats, n_iters, ok_conv = jax.vmap(
-        lambda x: _varimax_single_qdwh(x, eps, max_iter)
-    )(loadings)
+    with jax.default_matmul_precision("highest"):
+        rotated, rotmats, n_iters, ok_conv = jax.vmap(
+            lambda x: _varimax_single_qdwh(x, eps, max_iter)
+        )(loadings)
     eye = jnp.eye(q, dtype=loadings.dtype)
     with jax.default_matmul_precision("highest"):
         orth_err = jnp.linalg.norm(
@@ -212,17 +241,47 @@ def _varimax_qdwh_host(loadings, eps, max_iter, return_n_iter, orth_tol):
     return rotated, rotmats
 
 
+def _require_positive_int(name, value):
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value < 1:
+        raise ValueError(f"{name} must be a positive integer, got {value!r}")
+    return int(value)
+
+
+def _require_nonnegative_real(name, value):
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, numbers.Real):
+        raise ValueError(f"{name} must be a finite non-negative scalar, got {value!r}")
+    value_f = float(value)
+    if not np.isfinite(value_f) or value_f < 0:
+        raise ValueError(f"{name} must be finite and non-negative, got {value!r}")
+    return value_f
+
+
 def varimax_batch(loadings: jax.Array, eps: float = 1e-5, max_iter: int = 1000,
                   return_n_iter: bool = False, polar: str = "qdwh",
                   orth_tol: float | None = None):
     """(T, p, q) -> ((T, p, q) rotated, (T, q, q) rotation matrices); with
     return_n_iter=True also the (T,) int32 per-draw iteration counts.
 
-    q == 1 returns the input and identity rotations (as R does for ncol < 2).
+    q < 2 or p < 2 returns the input and identity rotations with zero counts
+    (as R does for ncol < 2; p = 1 makes the varimax gradient identically
+    zero, so the identity count is exact rather than an iteration limit).
+    q > p makes the gradient B rank-deficient (rank <= p < q), so the polar
+    factor is not unique and the returned rotation is one of many; the
+    factor-analysis model itself assumes q < p.
 
     polar: "qdwh" (default) uses jax.lax.linalg.qdwh with a degenerate-matrix
     guard and host-side SVD fallback; orth_tol defaults to 1e-3 in float32
     and 1e-9 in float64. "svd" uses the SVD iteration from R's varimax.
+
+    Loadings must be float32 or float64. Zeros and non-finite draws keep an
+    identity rotation; non-finite draws also return a count of zero. Scaling
+    uses exact IEEE exponent shifts, so subnormal (and extreme normal-range)
+    draws are processed at a normal scale and restored afterwards instead of
+    being flushed to zero.
+
+    Raises ValueError for non-positive (or bool) max_iter, negative or
+    non-finite eps, non-finite/negative orth_tol, non-float32/float64 input,
+    invalid polar, or non-finite return_n_iter.
 
     Each polar path reuses a cached jitted wrapper, with iteration settings
     captured as static arguments. QDWH fallback selection runs on the host.
@@ -230,6 +289,18 @@ def varimax_batch(loadings: jax.Array, eps: float = 1e-5, max_iter: int = 1000,
     loadings = jnp.asarray(loadings)
     if loadings.ndim != 3:
         raise ValueError(f"expected (T, p, q), got {loadings.shape}")
+    if any(size < 1 for size in loadings.shape):
+        raise ValueError(f"empty loadings shape {loadings.shape} is not supported")
+    if loadings.dtype not in (jnp.float32, jnp.float64):
+        raise ValueError(
+            f"varimax_batch requires float32 or float64 loadings, got {loadings.dtype}"
+        )
+    max_iter = _require_positive_int("max_iter", max_iter)
+    eps = _require_nonnegative_real("eps", eps)
+    if orth_tol is not None:
+        orth_tol = _require_nonnegative_real("orth_tol", orth_tol)
+    if not isinstance(return_n_iter, (bool, np.bool_)):
+        raise ValueError(f"return_n_iter must be a bool, got {return_n_iter!r}")
     if polar not in ("svd", "qdwh"):
         raise ValueError(f"unknown polar {polar!r}")
     if polar == "svd":

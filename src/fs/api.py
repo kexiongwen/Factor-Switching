@@ -8,6 +8,8 @@ never at import time.
 from __future__ import annotations
 
 import logging
+import numbers
+from collections.abc import Mapping
 
 import jax
 import jax.numpy as jnp
@@ -18,13 +20,15 @@ from .core.outer import make_step_fn
 from .io import _resolve_pq, from_flat
 from .kernels.assignment import DEFAULT_Q_ENUM
 from .kernels.varimax import varimax_batch
-from .types import RSPResult
+from .types import RSPResult, _scalar_items
 
 logger = logging.getLogger("fs")
 
 # Cache step wrappers by configuration so repeated calls reuse the same JIT
-# function identity and its compilation cache.
+# function identity and its compilation cache. The cache is bounded because
+# callers can vary sp_chunk_elems (part of the cache key) without limit.
 _STEP_FN_CACHE: dict = {}
+_STEP_FN_CACHE_MAX_ENTRIES = 32
 
 
 def _cached_step_fn(sp_path: str, backend: str, q_enum: int = DEFAULT_Q_ENUM,
@@ -32,6 +36,8 @@ def _cached_step_fn(sp_path: str, backend: str, q_enum: int = DEFAULT_Q_ENUM,
     key = (sp_path, backend, q_enum, max_chunk_elems)
     fn = _STEP_FN_CACHE.get(key)
     if fn is None:
+        if len(_STEP_FN_CACHE) >= _STEP_FN_CACHE_MAX_ENTRIES:
+            _STEP_FN_CACHE.clear()  # bound process-wide growth; jit caches persist
         fn = make_step_fn(sp_path, backend, q_enum, max_chunk_elems)
         _STEP_FN_CACHE[key] = fn
     return fn
@@ -93,11 +99,58 @@ def _configure_precision(precision="float32"):
         raise ValueError(f"precision must be 'float32' or 'float64', got {precision!r}")
 
 
+def _require_bool(name, value):
+    """Require a bool flag (Python or NumPy bool); reject truthy non-bools."""
+    if not isinstance(value, (bool, np.bool_)):
+        raise ValueError(f"{name} must be a bool, got {value!r}")
+    return bool(value)
+
+
+def _require_positive_scalar(name, value):
+    """Require a real, finite, strictly positive scalar.
+
+    bool/str/array-like inputs raise ValueError (not TypeError), so callers
+    see one documented exception type for every invalid argument.
+    """
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, numbers.Real):
+        raise ValueError(f"{name} must be a real positive finite scalar, got {value!r}")
+    value_f = float(value)
+    if not np.isfinite(value_f) or value_f <= 0:
+        raise ValueError(f"{name} must be positive and finite, got {value!r}")
+    return value_f
+
+
+def _validate_options(max_iter, threshold, rotate, return_transforms, verbose,
+                      assignment_backend):
+    """Validate scalar/flag options up front; return normalized values.
+
+    Python bool is an int subclass, so `max_iter=True` must be rejected
+    explicitly instead of silently becoming one sweep.
+    """
+    if (isinstance(max_iter, (bool, np.bool_))
+            or not isinstance(max_iter, (int, np.integer)) or max_iter < 1):
+        raise ValueError(f"max_iter must be a positive integer, got {max_iter!r}")
+    threshold = _require_positive_scalar("threshold", threshold)
+    rotate = _require_bool("rotate", rotate)
+    return_transforms = _require_bool("return_transforms", return_transforms)
+    verbose = _require_bool("verbose", verbose)
+    if assignment_backend not in ("auto", "optax", "scipy"):
+        raise ValueError(
+            f"unknown assignment_backend {assignment_backend!r}; "
+            "expected 'auto', 'optax' or 'scipy'"
+        )
+    return int(max_iter), threshold, rotate, return_transforms, verbose
+
+
 def _as_3d(lambda_mcmc, colnames=None, p=None, q=None, dtype=np.float32):
     cols = colnames
     if cols is None and hasattr(lambda_mcmc, "columns"):  # e.g. pandas DataFrame
         cols = list(lambda_mcmc.columns)
     if isinstance(lambda_mcmc, jax.Array):
+        if jnp.issubdtype(lambda_mcmc.dtype, jnp.complexfloating):
+            raise ValueError(
+                "loadings must be real-valued; complex input is not supported"
+            )
         # Keep device inputs on device; the finiteness check synchronizes
         # only one boolean to the host.
         arr = jnp.asarray(lambda_mcmc, dtype=dtype)
@@ -114,6 +167,10 @@ def _as_3d(lambda_mcmc, colnames=None, p=None, q=None, dtype=np.float32):
         if not bool(jnp.all(jnp.isfinite(arr))):
             raise ValueError("loadings contain non-finite values")
     else:
+        if np.iscomplexobj(lambda_mcmc):
+            raise ValueError(
+                "loadings must be real-valued; complex input is not supported"
+            )
         arr = np.asarray(lambda_mcmc, dtype=dtype)
         if arr.ndim == 3:
             if cols is not None or p is not None or q is not None:
@@ -171,18 +228,52 @@ def _representative_init(rotated, sp_path, backend, q_enum: int = DEFAULT_Q_ENUM
     return m_init
 
 
-def _prepare_input(lambda_mcmc, colnames, p, q, precision, max_iter, threshold):
-    """Entry preamble: precision mode, max_iter/threshold validation,
-    input conversion with device pass-through. Returns the (T, p, q) jax array
-    in the working dtype."""
+def _prepare_input(lambda_mcmc, colnames, p, q, precision):
+    """Entry preamble: precision mode and input conversion with device
+    pass-through. Returns the (T, p, q) jax array in the working dtype.
+
+    Option validation happens in `_validate_options` before this call, so
+    argument errors never touch the device.
+    """
     _configure_precision(precision)
-    if not isinstance(max_iter, (int, np.integer)) or max_iter < 1:
-        raise ValueError("max_iter must be a positive integer")
-    if threshold <= 0 or not np.isfinite(threshold):
-        raise ValueError("threshold must be positive and finite")
     raw = _as_3d(lambda_mcmc, colnames=colnames, p=p, q=q,
                  dtype=np.float32 if precision == "float32" else np.float64)
     return jnp.asarray(raw)
+
+
+def _reference_from_caller(reference, p, q, raw_j):
+    """Validate an explicitly supplied reference and cast it to the working dtype.
+
+    An explicit reference is caller input: non-finite values stay a caller
+    error (ValueError). Only an internally initialized non-finite M0 becomes
+    the status-4 result of spec 3.2.3. A finite float64 reference can still
+    overflow when cast to the float32 working dtype; that case gets a targeted
+    message instead of the generic non-finite one.
+    """
+    if np.iscomplexobj(reference):
+        raise ValueError(
+            "reference must be real-valued; complex input is not supported"
+        )
+    try:
+        ref = np.asarray(reference, dtype=np.float64)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"reference must be a real numeric ({p}, {q}) array: {exc}"
+        ) from exc
+    if ref.shape != (p, q):
+        raise ValueError(f"reference must be ({p}, {q}), got {ref.shape}")
+    if not np.isfinite(ref).all():
+        raise ValueError("reference contains non-finite values")
+    work = np.dtype(raw_j.dtype.name)
+    with np.errstate(over="ignore", invalid="ignore"):
+        cast = ref.astype(work)
+    if not np.isfinite(cast).all():
+        raise ValueError(
+            "reference contains finite values that overflow the working dtype "
+            f"{work.name} (max finite {np.finfo(work).max:g}); "
+            "use precision='float64' or pass a reference within that range"
+        )
+    return jnp.asarray(cast, dtype=raw_j.dtype)
 
 
 def _history_fields(hist_pre, hist_post, max_iter, dtype):
@@ -208,6 +299,72 @@ def _nonfinite_fields(**values):
     return tuple(name for name, ok in zip(present, finite) if not ok)
 
 
+def _nonfinite_reference_result(rotated, m0, raw_j, max_iter, vm_n_iter, precision,
+                                sp_path, assignment_backend, near_zero, rotate,
+                                rotmats, return_transforms, metadata):
+    """Status-4 result for an internally computed non-finite initial reference.
+
+    `reference` is reserved for caller input; this outcome can only come from
+    the package's own initialization (the mean of the rotated draws or the
+    representative-draw sweep after a varimax overflow). Spec 3.2.3 reports
+    such a run as a normal result with status_code 4 instead of raising, so
+    callers (e.g. BaseMGP.align_factors) can attach it to FloatingPointError.
+
+    All dataclass fields are filled with valid shapes/dtypes: identity
+    signs/permutations describe the (unperformed) alignment, requested
+    transforms are composed with that identity signed permutation, the
+    histories are zero-filled fixed-capacity buffers, and n_iter is zero.
+    diagnostics["nonfinite_fields"] lists every non-finite returned field
+    (including transforms when requested).
+    """
+    t, p, q = raw_j.shape
+    dtype = raw_j.dtype
+    aligned = jnp.asarray(rotated, dtype=dtype)
+    mean = jnp.asarray(m0, dtype=dtype)
+    applied = bool(rotate and q > 1)
+    signs = jnp.ones((t, q), dtype=jnp.int8)
+    permutations = jnp.tile(jnp.arange(q, dtype=jnp.int32), (t, 1))
+    transforms = None
+    if return_transforms:
+        transforms = _compose_transforms(rotmats, signs, permutations, dtype)
+    loss_final = jnp.asarray(jnp.inf, dtype=dtype)
+    nonfinite = _nonfinite_fields(
+        aligned_loadings=aligned,
+        mean_loadings=mean,
+        loss_final=loss_final,
+        transforms=transforms,
+    )
+    if not nonfinite:  # defensive: this path is only entered for a non-finite M0
+        nonfinite = ("mean_loadings",)
+    return RSPResult(
+        aligned_loadings=aligned,
+        mean_loadings=mean,
+        signs=signs,
+        permutations=permutations,
+        loss_initial=sum_squares(aligned - mean[None]),  # non-finite by construction
+        loss_final=loss_final,
+        loss_history=jnp.zeros((max_iter,), dtype=dtype),
+        n_iter=jnp.asarray(0, dtype=jnp.int32),
+        converged=jnp.asarray(False),
+        status_code=jnp.asarray(STATUS_NON_FINITE, dtype=jnp.int32),
+        transforms=transforms,
+        loss_history_post=jnp.zeros((max_iter,), dtype=dtype),
+        varimax_n_iter=vm_n_iter,
+        diagnostics={
+            "initial_reference_near_zero": near_zero,
+            "sp_path": sp_path,
+            "assignment_backend": assignment_backend,
+            "rotate_requested": bool(rotate),
+            "varimax_applied": applied,
+            "rotated": applied,
+            "precision": precision,
+            "stop_reason": "nonfinite_reference",
+            "nonfinite_fields": nonfinite,
+        },
+        metadata=metadata,
+    )
+
+
 def rsp_exact(
     lambda_mcmc,
     *,
@@ -227,6 +384,7 @@ def rsp_exact(
     return_transforms: bool = False,
     verbose: bool = False,
     precision: str = "float32",
+    metadata: dict | None = None,
 ) -> RSPResult:
     """Varimax rotation followed by exact sign/permutation alignment.
 
@@ -239,40 +397,97 @@ def rsp_exact(
     diagnostic is recorded for all modes. An explicit `reference` takes
     priority over `init` (init applies only when reference=None).
 
+    reference: an explicit (p, q) matrix. A non-finite reference (or finite
+    values that overflow the working-dtype cast) is a caller error and raises
+    ValueError. A non-finite M0 computed internally (mean/representative
+    initialization, e.g. after a float32 varimax overflow) is not an
+    exception: the run returns a normal RSPResult with status_code 4,
+    stop_reason="nonfinite_reference", n_iter == 0 and zero-filled loss
+    histories. diagnostics["nonfinite_fields"] names every non-finite returned
+    field (aligned_loadings, mean_loadings, loss_final, and transforms when
+    requested); requested transforms are composed with the identity signed
+    permutation, and initial_reference_near_zero is False for a non-finite
+    mean. Public wrappers can turn this result into their documented
+    FloatingPointError.
+
+    metadata: optional mapping of caller-supplied MCMC metadata (hashable
+    scalars or sequences of scalars); stored on the result, never read by the
+    kernels. Raises TypeError for unsupported values.
+
+    rotate=True with q == 1 performs no varimax update (identity rotation,
+    spec 4.1) but still reports per-draw counts of zero in varimax_n_iter;
+    varimax_n_iter is None only when rotate=False skips the stage entirely.
+    diagnostics records `rotate_requested`, `varimax_applied` and the legacy
+    `rotated` key (equal to varimax_applied).
+
     precision: "float32" (default; explicit cast, x64 global untouched) or
-    "float64" (opt-in fidelity mode, enables x64 at the entry).
+    "float64" (opt-in fidelity mode, enables x64 at the entry and leaves it
+    enabled; a failed validation after this switch does not restore it).
+
+    JIT note: sp_path="enum" and assignment_backend="scipy" run eagerly
+    instead of under jax.jit (see core.outer.make_step_fn). Reduction order
+    can then differ from the jitted paths, so loss scalars may differ in the
+    last few digits (~1e-7 relative); aligned loadings, signs and permutation
+    indices are not affected by this.
     """
     if sp_path not in ("elim", "enum"):
         raise ValueError(f"unknown sp_path {sp_path!r}")
     if init not in ("auto", "mean", "draw"):
         raise ValueError(f"unknown init {init!r}")
-    if not isinstance(assignment_q_enum, (int, np.integer)) or assignment_q_enum < 0:
+    if (isinstance(assignment_q_enum, (bool, np.bool_))
+            or not isinstance(assignment_q_enum, (int, np.integer))
+            or assignment_q_enum < 0):
         raise ValueError("assignment_q_enum must be a non-negative integer")
     if sp_chunk_elems is not None and (
-        not isinstance(sp_chunk_elems, (int, np.integer)) or sp_chunk_elems < 1
+        isinstance(sp_chunk_elems, (bool, np.bool_))
+        or not isinstance(sp_chunk_elems, (int, np.integer))
+        or sp_chunk_elems < 1
     ):
         raise ValueError("sp_chunk_elems must be a positive integer or None")
     if polar not in ("svd", "qdwh"):
         raise ValueError(f"unknown polar {polar!r}")
+    (max_iter, threshold, rotate, return_transforms,
+     verbose) = _validate_options(max_iter, threshold, rotate, return_transforms,
+                                 verbose, assignment_backend)
+    if metadata is None:
+        metadata = {}
+    elif not isinstance(metadata, Mapping):
+        raise TypeError(f"metadata must be a mapping, got {type(metadata).__name__}")
+    else:
+        metadata = dict(metadata)
+        _scalar_items(metadata, "metadata")  # raises TypeError for unsupported values
     chunk_elems = (1 << 26) if sp_chunk_elems is None else int(sp_chunk_elems)
 
-    raw_j = _prepare_input(lambda_mcmc, colnames, p, q, precision, max_iter, threshold)
+    raw_j = _prepare_input(lambda_mcmc, colnames, p, q, precision)
     t, p_, q_ = raw_j.shape
 
+    varimax_applied = bool(rotate and q_ > 1)
     if rotate and q_ > 1:
         rotated, rotmats, vm_n_iter = varimax_batch(raw_j, polar=polar, return_n_iter=True)
+    elif rotate:
+        # q == 1: the varimax stage is an identity rotation (spec 4.1), so the
+        # per-draw counts are explicit zeros instead of None (stage not skipped).
+        rotated = raw_j
+        rotmats = None
+        vm_n_iter = jnp.zeros((t,), dtype=jnp.int32)
     else:
         rotated = raw_j
         rotmats = None
-        vm_n_iter = None
+        vm_n_iter = None  # varimax stage skipped entirely
 
     mean_rot = safe_mean(rotated, axis=0)
+    mean_norm = scaled_norm(mean_rot)
+    draw_scale = safe_mean(scaled_norm(rotated, axis=(1, 2)))
     near_zero = bool(
-        scaled_norm(mean_rot)
-        <= NEAR_ZERO_RTOL * float(safe_mean(scaled_norm(rotated, axis=(1, 2))))
+        jnp.all(jnp.isfinite(mean_rot))
+        & jnp.isfinite(mean_norm)
+        & jnp.isfinite(draw_scale)
+        & (mean_norm <= NEAR_ZERO_RTOL * draw_scale)
     )
     if reference is not None:
-        m0 = jnp.asarray(reference, dtype=raw_j.dtype)
+        # Caller input: non-finite values (or values that overflow the working
+        # dtype cast) are a ValueError, never a status-4 result.
+        m0 = _reference_from_caller(reference, p_, q_, raw_j)
     elif init == "mean":
         m0 = mean_rot
     else:
@@ -288,7 +503,15 @@ def rsp_exact(
     if m0.shape != (p_, q_):
         raise ValueError(f"reference must be ({p_}, {q_}), got {m0.shape}")
     if not bool(jnp.all(jnp.isfinite(m0))):
-        raise ValueError("reference contains non-finite values")
+        if reference is not None:  # defensive: _reference_from_caller validated it
+            raise ValueError("reference contains non-finite values")
+        # Internally initialized M0 (mean/representative init, possibly after a
+        # float32 varimax overflow): status-4 result per spec 3.2.3.
+        return _nonfinite_reference_result(
+            rotated, m0, raw_j, max_iter, vm_n_iter, precision, sp_path,
+            assignment_backend, near_zero, rotate, rotmats, return_transforms,
+            metadata,
+        )
     d0 = rotated - m0[None]
     f0 = sum_squares(d0)  # initial loss against M_0
 
@@ -362,9 +585,9 @@ def rsp_exact(
         loss_initial=f0,
         loss_final=loss_final,
         loss_history=loss_history,
-        n_iter=jnp.asarray(n_iter),
+        n_iter=jnp.asarray(n_iter, dtype=jnp.int32),
         converged=jnp.asarray(status == STATUS_CONVERGED),
-        status_code=jnp.asarray(status),
+        status_code=jnp.asarray(status, dtype=jnp.int32),
         transforms=transforms,
         loss_history_post=loss_history_post,
         varimax_n_iter=vm_n_iter,
@@ -372,9 +595,12 @@ def rsp_exact(
             "initial_reference_near_zero": near_zero,
             "sp_path": sp_path,
             "assignment_backend": assignment_backend,
-            "rotated": bool(rotate and q_ > 1),
+            "rotate_requested": bool(rotate),
+            "varimax_applied": varimax_applied,
+            "rotated": varimax_applied,
             "precision": precision,
             "stop_reason": stop_reason,
             "nonfinite_fields": nonfinite_fields,
         },
+        metadata=metadata,
     )

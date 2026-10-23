@@ -42,8 +42,17 @@ def make_step_fn(sp_path: str, backend: str, q_enum: int = DEFAULT_Q_ENUM,
 
     Jitted for device backends; the host-side "scipy" backend runs eagerly
     because its NumPy conversion cannot be traced by jax.jit.
+
+    The sign-enumeration path ("enum") also runs eagerly: `sp_step_enum`
+    performs 2**q sequential `_solve_costs` calls (each with its own refinement
+    while-loop), and tracing them as part of one `jax.jit(outer_step)` builds a
+    single huge program whose compile time explodes (seconds at q=3, minutes
+    at q=4). Eager execution instead reuses the already-compiled assignment
+    solver, so the cost is a Python loop over 2**q sign configurations.
     """
     step = lambda rot, ref: outer_step(  # noqa: E731
         rot, ref, sp_path, backend, q_enum, max_chunk_elems
     )
-    return step if backend == "scipy" else jax.jit(step)
+    if backend == "scipy" or sp_path == "enum":
+        return step
+    return jax.jit(step)

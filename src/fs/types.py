@@ -7,9 +7,11 @@ Permutations are zero-based (T, q) bijections.
 PyTree contract: numeric, run-dependent arrays live in leaf
 fields (children); `diagnostics` and `metadata` are flattened into sorted
 tuples of hashable scalars or scalar sequences as aux data, so two
-independent results with equal configuration compare equal and can enter the
-same jit-compiled function repeatedly. Unsupported values in those dicts
-raise a TypeError with guidance.
+independent results with equal configuration share the same treedef/aux data
+and can enter the same jit-compiled function repeatedly. This is pytree
+equality, not `RSPResult.__eq__`: instances are compared by identity (`==`
+is not defined) because holding array fields makes elementwise equality
+ambiguous. Unsupported values in those dicts raise a TypeError with guidance.
 """
 from __future__ import annotations
 
@@ -53,7 +55,7 @@ def _scalar_items(d: dict | None, name: str) -> tuple:
 
 
 @register_pytree_node_class
-@dataclass
+@dataclass(eq=False)
 class RSPResult:
     """Result of an RSP alignment run.
 
@@ -75,25 +77,31 @@ class RSPResult:
     n_iter:              number of outer iterations actually run.
     converged:           stopping threshold was met (status_code == 1).
     status_code:         1 = converged, 2 = max_iter reached,
-                         3 = anomaly, 4 = non-finite objective
-                         (the original-scale loss is unrepresentable or a
-                         non-finite intermediate appeared).
+                         3 = anomaly, 4 = non-finite objective/intermediate
+                         (the original-scale loss is unrepresentable, a
+                         non-finite intermediate appeared, or an internally
+                         initialized reference M0 was non-finite).
     transforms:          optional (T, q, q) full orthogonal transforms per draw;
                          None when return_transforms=False.
     varimax_n_iter:      optional (T,) int32 per-draw varimax iteration counts
                          (a count at the update limit indicates that the
-                         iteration budget was exhausted; None when no
-                         varimax pre-rotation ran). These counts do not
-                         certify a local or global maximum of the varimax
-                         criterion.
+                         iteration budget was exhausted; None only when the
+                         varimax stage was skipped with rotate=False).
+                         rotate=True with q == 1 returns zeros (identity
+                         rotation, spec 4.1), and p == 1 also returns zeros.
+                         These counts do not certify a local or global
+                         maximum of the varimax criterion.
     diagnostics:         static configuration/scalars (hashable pairs in aux).
                          Includes `stop_reason` ("converged_threshold" /
-                         "max_iter" / "anomaly" / "nonfinite_objective").
-                         `nonfinite_fields` names quantities found non-finite
-                         by the output checks (an empty tuple otherwise).
-    metadata:            MCMC metadata held by the outer object (chain name,
-                         variable names, start/thin, ...); kernels never depend
-                         on it. Populated by the caller.
+                         "max_iter" / "anomaly" / "nonfinite_objective" /
+                         "nonfinite_reference"), `rotate_requested`,
+                         `varimax_applied` (and the legacy `rotated` key,
+                         equal to it). `nonfinite_fields` names quantities
+                         found non-finite by the output checks (an empty
+                         tuple otherwise).
+    metadata:            MCMC metadata supplied through
+                         rsp_exact(metadata=...) (or set by the caller after
+                         the run); kernels never depend on it.
     """
 
     aligned_loadings: jnp.ndarray

@@ -70,13 +70,14 @@ def _resolve_pq(colnames, p, q, d):
     return p, q
 
 
-def from_flat(flat, colnames=None, p: int | None = None, q: int | None = None, dtype=np.float64):
+def from_flat(flat, colnames=None, p: int | None = None, q: int | None = None, dtype=None):
     """(T, p*q) flat array -> (T, p, q).
 
     With `colnames`, (p, q) are inferred and strictly validated. Without names,
-    p and q must both be given explicitly (no guessing).
+    p and q must both be given explicitly (no guessing). The input dtype is
+    preserved by default (like `to_flat`); pass `dtype` to coerce explicitly.
     """
-    arr = np.asarray(flat, dtype=dtype)
+    arr = np.asarray(flat) if dtype is None else np.asarray(flat, dtype=dtype)
     if arr.ndim != 2:
         raise ValueError(f"flat loadings must be 2-D (T, p*q), got shape {arr.shape}")
     t, d = arr.shape
@@ -86,9 +87,13 @@ def from_flat(flat, colnames=None, p: int | None = None, q: int | None = None, d
     return arr.reshape(t, p, q)
 
 
-def to_flat(arr) -> np.ndarray:
-    """(T, p, q) -> (T, p*q) in R's variable-major order (`c(t(Lambda))`)."""
-    arr = np.asarray(arr, dtype=np.float64)
+def to_flat(arr, dtype=None) -> np.ndarray:
+    """(T, p, q) -> (T, p*q) in R's variable-major order (`c(t(Lambda))`).
+
+    The input dtype is preserved by default, so a float32 pipeline stays
+    float32; pass `dtype` to coerce explicitly.
+    """
+    arr = np.asarray(arr) if dtype is None else np.asarray(arr, dtype=dtype)
     if arr.ndim != 3:
         raise ValueError(f"expected (T, p, q), got shape {arr.shape}")
     return arr.reshape(arr.shape[0], -1)

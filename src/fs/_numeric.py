@@ -93,6 +93,19 @@ def max_abs(x, axis=None, keepdims=False):
     return jax.lax.bitcast_convert_type(largest, x.dtype)
 
 
+def any_nonzero(x):
+    """Whether any element is nonzero, judged from the IEEE magnitude bits.
+
+    Integer bit inspection avoids a floating-point comparison, which some
+    backends may evaluate after flushing subnormal inputs to zero.
+    """
+    x = jnp.asarray(x)
+    bits, _sig, _e, _exp, uint, width, _nmant, _bias = _float_parts(x)
+    one = jnp.asarray(1, dtype=uint)
+    magnitude = bits & ((one << (width - 1)) - one)
+    return jnp.any(magnitude != 0)
+
+
 def pow2_recip(v):
     """Compatibility helper: two reciprocal factors and a finite power scale.
 
