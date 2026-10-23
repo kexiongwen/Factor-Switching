@@ -1,6 +1,6 @@
 # Factor switching
 
-`Python 3.12+` · `JAX` · `GPL-2.0-only`
+`Python 3.12+` · `JAX` · `NumPy` · `Optax` · `SciPy` · `GPL-2.0-only`
 
 **Rotation–Sign–Permutation (RSP) alignment of posterior factor loadings, in JAX.**
 
